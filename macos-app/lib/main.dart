@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart' hide Menu, MenuItem;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:path/path.dart' as p;
@@ -127,10 +127,13 @@ class _KadrMacAppState extends State<KadrMacApp> with TrayListener {
     switch (item.key) {
       case 'capture':
         unawaited(_captureRegion());
+        break;
       case 'folder':
         unawaited(_openFolder());
+        break;
       case 'quit':
         unawaited(_quit());
+        break;
     }
   }
 
