@@ -1,0 +1,19 @@
+name: kadr_macos
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  hotkey_manager: ^0.2.3
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  screen_capturer: ^0.2.3
+  tray_manager: ^0.2.3
+  window_manager: ^0.4.3
+
+flutter:
+  uses-material-design: true
