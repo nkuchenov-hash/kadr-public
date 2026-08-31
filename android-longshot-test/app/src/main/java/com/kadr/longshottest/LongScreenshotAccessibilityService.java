@@ -1,9 +1,8 @@
 package com.kadr.longshottest;
 
-import android.accessibilityservice.AccessibilityGestureEvent;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
-import android.content.ContentValues;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Path;
@@ -13,6 +12,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.content.ContentValues;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -28,65 +28,80 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class LongScreenshotAccessibilityService extends AccessibilityService {
-  private static final int MAX_FRAMES = 16;
-  private static final int MAX_HEIGHT = 48000;
-  private static final long SETTLE_MS = 600L;
+  private static final int MAX_FRAMES = 24;
+  private static final int MAX_OUTPUT_HEIGHT = 60_000;
+  private static final long SCROLL_SETTLE_MS = 650L;
+  private static volatile LongScreenshotAccessibilityService activeInstance;
 
   private final Handler main = new Handler(Looper.getMainLooper());
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private final List<Bitmap> frames = new ArrayList<>();
   private boolean capturing;
 
+  @Override protected void onServiceConnected() {
+    super.onServiceConnected();
+    activeInstance = this;
+  }
+
   @Override public void onAccessibilityEvent(AccessibilityEvent event) {}
   @Override public void onInterrupt() {}
 
-  @Override public boolean onGesture(AccessibilityGestureEvent event) {
-    if (Build.VERSION.SDK_INT < 30) return false;
-    if (event.getGestureId() != GESTURE_3_FINGER_SWIPE_DOWN) return false;
+  public static boolean requestStart(Context context) {
+    LongScreenshotAccessibilityService service = activeInstance;
+    if (service == null) return false;
+    service.main.post(service::startLongCapture);
+    return true;
+  }
+
+  private void startLongCapture() {
     if (capturing) {
-      toast("KADR: уже снимаю");
-      return true;
+      toast("KADR: длинный скриншот уже создаётся");
+      return;
     }
     capturing = true;
     clearFrames();
     toast("KADR: длинный скриншот");
-    capture(0);
-    return true;
+    captureFrame(0);
   }
 
-  private void capture(int index) {
+  private void captureFrame(int index) {
+    if (Build.VERSION.SDK_INT < 30) {
+      finishWithError("Нужен Android 11 или новее");
+      return;
+    }
     takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(), new TakeScreenshotCallback() {
-      @Override public void onSuccess(ScreenshotResult shot) {
-        HardwareBuffer buffer = shot.getHardwareBuffer();
-        Bitmap hardware = Bitmap.wrapHardwareBuffer(buffer, shot.getColorSpace());
+      @Override public void onSuccess(ScreenshotResult screenshot) {
+        HardwareBuffer buffer = screenshot.getHardwareBuffer();
+        Bitmap hardware = Bitmap.wrapHardwareBuffer(buffer, screenshot.getColorSpace());
         if (hardware == null) {
           buffer.close();
-          fail("не удалось получить кадр");
+          finishWithError("Не удалось получить изображение");
           return;
         }
         Bitmap copy = hardware.copy(Bitmap.Config.ARGB_8888, false);
         buffer.close();
         if (copy == null) {
-          fail("не удалось обработать кадр");
+          finishWithError("Не удалось обработать изображение");
           return;
         }
-
-        if (!frames.isEmpty() && nearlySame(frames.get(frames.size() - 1), copy)) {
+        if (!frames.isEmpty() && isNearlySame(frames.get(frames.size() - 1), copy)) {
           copy.recycle();
-          finishCapture();
+          stitchAndSave();
           return;
         }
         frames.add(copy);
-
-        if (index + 1 >= MAX_FRAMES || !scrollForward()) {
-          finishCapture();
+        if (index + 1 >= MAX_FRAMES) {
+          stitchAndSave();
           return;
         }
-        main.postDelayed(() -> capture(index + 1), SETTLE_MS);
+        if (!scrollForward()) {
+          stitchAndSave();
+          return;
+        }
+        main.postDelayed(() -> captureFrame(index + 1), SCROLL_SETTLE_MS);
       }
-
       @Override public void onFailure(int errorCode) {
-        fail("снимок недоступен: " + errorCode);
+        finishWithError("Снимок экрана недоступен (" + errorCode + ")");
       }
     });
   }
@@ -102,16 +117,15 @@ public final class LongScreenshotAccessibilityService extends AccessibilityServi
     } else if (root != null) {
       root.recycle();
     }
-
-    int w = getResources().getDisplayMetrics().widthPixels;
-    int h = getResources().getDisplayMetrics().heightPixels;
-    Path p = new Path();
-    p.moveTo(w * 0.5f, h * 0.78f);
-    p.lineTo(w * 0.5f, h * 0.24f);
-    GestureDescription g = new GestureDescription.Builder()
-        .addStroke(new GestureDescription.StrokeDescription(p, 0, 320))
+    int width = getResources().getDisplayMetrics().widthPixels;
+    int height = getResources().getDisplayMetrics().heightPixels;
+    Path path = new Path();
+    path.moveTo(width * 0.5f, height * 0.78f);
+    path.lineTo(width * 0.5f, height * 0.24f);
+    GestureDescription gesture = new GestureDescription.Builder()
+        .addStroke(new GestureDescription.StrokeDescription(path, 0, 320))
         .build();
-    return dispatchGesture(g, null, null);
+    return dispatchGesture(gesture, null, null);
   }
 
   private AccessibilityNodeInfo findScrollable(AccessibilityNodeInfo node) {
@@ -126,49 +140,52 @@ public final class LongScreenshotAccessibilityService extends AccessibilityServi
     return null;
   }
 
-  private void finishCapture() {
+  private void stitchAndSave() {
     if (frames.isEmpty()) {
-      fail("нет кадров");
+      finishWithError("Нет кадров для сохранения");
       return;
     }
     worker.execute(() -> {
       try {
-        Bitmap stitched = stitch();
-        Uri uri = save(stitched);
-        stitched.recycle();
+        Bitmap result = stitch(frames);
+        Uri uri = savePng(result);
+        result.recycle();
         main.post(() -> {
           capturing = false;
           clearFrames();
-          toast(uri != null ? "KADR: сохранено в Pictures/KADR" : "KADR: ошибка сохранения");
+          toast(uri != null ? "KADR: длинный скриншот сохранён" : "KADR: ошибка сохранения");
         });
       } catch (Throwable t) {
-        main.post(() -> fail("ошибка склейки"));
+        main.post(() -> finishWithError("Не удалось склеить скриншот"));
       }
     });
   }
 
-  private Bitmap stitch() {
-    Bitmap first = frames.get(0);
+  private Bitmap stitch(List<Bitmap> input) {
+    Bitmap first = input.get(0);
     int width = first.getWidth();
     List<Integer> overlaps = new ArrayList<>();
-    int total = first.getHeight();
-    for (int i = 1; i < frames.size(); i++) {
-      int overlap = estimateOverlap(frames.get(i - 1), frames.get(i));
+    int totalHeight = first.getHeight();
+    for (int i = 1; i < input.size(); i++) {
+      Bitmap next = input.get(i);
+      int overlap = estimateOverlap(input.get(i - 1), next);
       overlaps.add(overlap);
-      total += Math.max(1, frames.get(i).getHeight() - overlap);
-      if (total >= MAX_HEIGHT) { total = MAX_HEIGHT; break; }
+      totalHeight += Math.max(1, next.getHeight() - overlap);
+      if (totalHeight >= MAX_OUTPUT_HEIGHT) {
+        totalHeight = MAX_OUTPUT_HEIGHT;
+        break;
+      }
     }
-
-    Bitmap out = Bitmap.createBitmap(width, total, Bitmap.Config.ARGB_8888);
+    Bitmap out = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.ARGB_8888);
     Canvas canvas = new Canvas(out);
     canvas.drawBitmap(first, 0, 0, null);
     int y = first.getHeight();
-    for (int i = 1; i < frames.size() && i - 1 < overlaps.size() && y < total; i++) {
-      Bitmap frame = frames.get(i);
-      int top = Math.min(overlaps.get(i - 1), frame.getHeight() - 1);
-      int remaining = Math.min(frame.getHeight() - top, total - y);
+    for (int i = 1; i < input.size() && i - 1 < overlaps.size() && y < totalHeight; i++) {
+      Bitmap frame = input.get(i);
+      int srcTop = Math.min(overlaps.get(i - 1), frame.getHeight() - 1);
+      int remaining = Math.min(frame.getHeight() - srcTop, totalHeight - y);
       if (remaining <= 0) break;
-      android.graphics.Rect src = new android.graphics.Rect(0, top, frame.getWidth(), top + remaining);
+      android.graphics.Rect src = new android.graphics.Rect(0, srcTop, frame.getWidth(), srcTop + remaining);
       android.graphics.Rect dst = new android.graphics.Rect(0, y, width, y + remaining);
       canvas.drawBitmap(frame, src, dst, null);
       y += remaining;
@@ -179,23 +196,22 @@ public final class LongScreenshotAccessibilityService extends AccessibilityServi
   private int estimateOverlap(Bitmap a, Bitmap b) {
     int h = Math.min(a.getHeight(), b.getHeight());
     int w = Math.min(a.getWidth(), b.getWidth());
-    int min = Math.max(48, h / 10);
-    int max = Math.max(min, h * 3 / 4);
-    int stepY = Math.max(12, h / 140);
-    int stepX = Math.max(12, w / 80);
+    int min = Math.max(32, h / 12);
+    int max = Math.max(min, (h * 3) / 4);
     int best = min;
     double bestScore = Double.MAX_VALUE;
-
-    for (int overlap = min; overlap <= max; overlap += stepY) {
+    int sample = Math.max(8, w / 120);
+    int yStep = Math.max(8, h / 180);
+    for (int overlap = min; overlap <= max; overlap += yStep) {
       long diff = 0;
       long count = 0;
-      int rows = Math.min(overlap, 220);
-      for (int y = overlap - rows; y < overlap; y += stepY) {
+      int rows = Math.min(overlap, 240);
+      int rowStart = Math.max(0, overlap - rows);
+      for (int y = rowStart; y < overlap; y += yStep) {
         int ay = a.getHeight() - overlap + y;
-        int by = y;
-        for (int x = 0; x < w; x += stepX) {
+        for (int x = 0; x < w; x += sample) {
           int ca = a.getPixel(x, ay);
-          int cb = b.getPixel(x, by);
+          int cb = b.getPixel(x, y);
           diff += Math.abs(android.graphics.Color.red(ca) - android.graphics.Color.red(cb));
           diff += Math.abs(android.graphics.Color.green(ca) - android.graphics.Color.green(cb));
           diff += Math.abs(android.graphics.Color.blue(ca) - android.graphics.Color.blue(cb));
@@ -204,21 +220,25 @@ public final class LongScreenshotAccessibilityService extends AccessibilityServi
       }
       if (count > 0) {
         double score = diff / (double) count;
-        if (score < bestScore) { bestScore = score; best = overlap; }
+        if (score < bestScore) {
+          bestScore = score;
+          best = overlap;
+        }
       }
     }
     return best;
   }
 
-  private boolean nearlySame(Bitmap a, Bitmap b) {
+  private boolean isNearlySame(Bitmap a, Bitmap b) {
     if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) return false;
-    int sx = Math.max(16, a.getWidth() / 60);
-    int sy = Math.max(16, a.getHeight() / 90);
+    int stepX = Math.max(12, a.getWidth() / 80);
+    int stepY = Math.max(12, a.getHeight() / 120);
     long diff = 0;
     long count = 0;
-    for (int y = 0; y < a.getHeight(); y += sy) {
-      for (int x = 0; x < a.getWidth(); x += sx) {
-        int ca = a.getPixel(x, y), cb = b.getPixel(x, y);
+    for (int y = 0; y < a.getHeight(); y += stepY) {
+      for (int x = 0; x < a.getWidth(); x += stepX) {
+        int ca = a.getPixel(x, y);
+        int cb = b.getPixel(x, y);
         diff += Math.abs(android.graphics.Color.red(ca) - android.graphics.Color.red(cb));
         diff += Math.abs(android.graphics.Color.green(ca) - android.graphics.Color.green(cb));
         diff += Math.abs(android.graphics.Color.blue(ca) - android.graphics.Color.blue(cb));
@@ -228,40 +248,48 @@ public final class LongScreenshotAccessibilityService extends AccessibilityServi
     return count > 0 && diff / (double) count < 2.0;
   }
 
-  private Uri save(Bitmap bitmap) throws Exception {
+  private Uri savePng(Bitmap bitmap) throws Exception {
     ContentValues values = new ContentValues();
-    values.put(MediaStore.Images.Media.DISPLAY_NAME,
-        "KADR_LONG_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".png");
+    String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+    values.put(MediaStore.Images.Media.DISPLAY_NAME, "KADR_LONG_" + stamp + ".png");
     values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-    values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/KADR");
-    values.put(MediaStore.Images.Media.IS_PENDING, 1);
+    if (Build.VERSION.SDK_INT >= 29) {
+      values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/KADR");
+      values.put(MediaStore.Images.Media.IS_PENDING, 1);
+    }
     Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
     if (uri == null) return null;
     try (OutputStream out = getContentResolver().openOutputStream(uri)) {
-      if (out == null || !bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) return null;
+      if (out == null || !bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+        getContentResolver().delete(uri, null, null);
+        return null;
+      }
     }
-    ContentValues done = new ContentValues();
-    done.put(MediaStore.Images.Media.IS_PENDING, 0);
-    getContentResolver().update(uri, done, null, null);
+    if (Build.VERSION.SDK_INT >= 29) {
+      ContentValues done = new ContentValues();
+      done.put(MediaStore.Images.Media.IS_PENDING, 0);
+      getContentResolver().update(uri, done, null, null);
+    }
     return uri;
   }
 
-  private void fail(String text) {
+  private void finishWithError(String text) {
     capturing = false;
     clearFrames();
     toast("KADR: " + text);
+  }
+
+  private void clearFrames() {
+    for (Bitmap frame : frames) if (frame != null && !frame.isRecycled()) frame.recycle();
+    frames.clear();
   }
 
   private void toast(String text) {
     main.post(() -> Toast.makeText(this, text, Toast.LENGTH_SHORT).show());
   }
 
-  private void clearFrames() {
-    for (Bitmap b : frames) if (b != null && !b.isRecycled()) b.recycle();
-    frames.clear();
-  }
-
   @Override public void onDestroy() {
+    if (activeInstance == this) activeInstance = null;
     clearFrames();
     worker.shutdownNow();
     main.removeCallbacksAndMessages(null);
