@@ -99,6 +99,7 @@ jobs:
           set -euo pipefail
           app_path='build/macos/Build/Products/Release/kadr_macos.app'
           test -d "$app_path"
+          echo "binary_archs=$(lipo -archs "$app_path/Contents/MacOS/kadr_macos")"
           rm -rf build/dmg-root
           mkdir -p build/dmg-root
           cp -R "$app_path" build/dmg-root/KADR.app
@@ -114,11 +115,19 @@ jobs:
             macos-app/build/KADR-macOS.dmg
             macos-app/build/KADR-macOS.sha256
 
-      - name: Attach DMG to latest public release
+      - name: Publish macOS preview release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
-          gh release upload "$tag" build/KADR-macOS.dmg build/KADR-macOS.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          tag='macos-preview'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" build/KADR-macOS.dmg build/KADR-macOS.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" build/KADR-macOS.dmg build/KADR-macOS.sha256 \
+              --repo "$GITHUB_REPOSITORY" \
+              --title 'KADR macOS Preview' \
+              --notes 'Preview build for macOS. Capture a region with Option+Shift+2, copy it to the clipboard, and save it to Pictures/KADR/Screenshots.' \
+              --prerelease
+          fi
