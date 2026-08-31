@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KADR Longshot Test</string>
+    <string name="accessibility_description">Жест тремя пальцами вниз запускает длинный скриншот KADR в текущем приложении.</string>
+</resources>
