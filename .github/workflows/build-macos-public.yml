@@ -1,0 +1,124 @@
+name: Build macOS Public
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'macos-app/**'
+      - '.github/workflows/build-macos-public.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-macos-public
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: macos-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate macOS runner
+        run: flutter create --platforms=macos --project-name kadr_macos .
+
+      - name: Generate menu bar icon
+        shell: python3 {0}
+        run: |
+          from pathlib import Path
+          import struct, zlib, binascii
+
+          w = h = 18
+          rows = []
+          for y in range(h):
+              row = bytearray([0])
+              for x in range(w):
+                  on = (3 <= x <= 5 and 3 <= y <= 14) or \
+                       (5 <= x <= 13 and abs((9 - y) - (x - 5)) <= 1) or \
+                       (5 <= x <= 13 and abs((y - 9) - (x - 5)) <= 1)
+                  row += bytes((0, 0, 0, 255 if on else 0))
+              rows.append(bytes(row))
+          raw = b''.join(rows)
+          def chunk(kind, data):
+              return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', binascii.crc32(kind + data) & 0xffffffff)
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
+          path = Path('assets/menu_icon.png')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_bytes(png)
+
+      - name: Register menu icon asset
+        shell: python3 {0}
+        run: |
+          from pathlib import Path
+          p = Path('pubspec.yaml')
+          text = p.read_text()
+          if 'assets/menu_icon.png' not in text:
+              text = text.replace('  uses-material-design: true\n', '  uses-material-design: true\n  assets:\n    - assets/menu_icon.png\n')
+          p.write_text(text)
+
+      - name: Configure menu-bar app
+        shell: python3 {0}
+        run: |
+          from pathlib import Path
+          import plistlib
+          info_path = Path('macos/Runner/Info.plist')
+          info = plistlib.loads(info_path.read_bytes())
+          info['CFBundleDisplayName'] = 'KADR'
+          info['CFBundleName'] = 'KADR'
+          info['LSUIElement'] = True
+          info_path.write_bytes(plistlib.dumps(info, sort_keys=False))
+          for name in ('DebugProfile.entitlements', 'Release.entitlements'):
+              path = Path('macos/Runner') / name
+              data = plistlib.loads(path.read_bytes()) if path.exists() else {}
+              data['com.apple.security.app-sandbox'] = False
+              path.write_bytes(plistlib.dumps(data, sort_keys=False))
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build release
+        run: flutter build macos --release
+
+      - name: Package DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path='build/macos/Build/Products/Release/kadr_macos.app'
+          test -d "$app_path"
+          rm -rf build/dmg-root
+          mkdir -p build/dmg-root
+          cp -R "$app_path" build/dmg-root/KADR.app
+          ln -s /Applications build/dmg-root/Applications
+          hdiutil create -volname KADR -srcfolder build/dmg-root -ov -format UDZO build/KADR-macOS.dmg
+          shasum -a 256 build/KADR-macOS.dmg > build/KADR-macOS.sha256
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-macOS
+          path: |
+            macos-app/build/KADR-macOS.dmg
+            macos-app/build/KADR-macOS.sha256
+
+      - name: Attach DMG to latest public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          gh release upload "$tag" build/KADR-macOS.dmg build/KADR-macOS.sha256 --repo "$GITHUB_REPOSITORY" --clobber
