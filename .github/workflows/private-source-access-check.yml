@@ -1,0 +1,32 @@
+name: Check KADR private source access
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/private-source-access-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout private KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: main
+          path: source
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN || secrets.KADR_PUBLIC_RELEASE_TOKEN }}
+
+      - name: Verify 1.0.12 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^version: 1.0.12+12$' source/pubspec.yaml
+          grep -q "versionName '1.0.12'" source/mobile/android/app/build.gradle
+          echo 'Private KADR source access is working.'
