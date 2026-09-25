@@ -31,7 +31,7 @@ jobs:
           $process = Start-Process -FilePath (Join-Path $PWD 'downloads\KADR-Setup.exe') -ArgumentList $args -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Source installer failed: $($process.ExitCode)" }
           Get-Process kadr -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-          Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'KADR' -ErrorAction SilentlyContinue
+          Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'KADR' -ErrorAction SilentlyContinue
           Get-ChildItem $payload -Filter 'unins*' -File -ErrorAction SilentlyContinue | Remove-Item -Force
           Remove-Item (Join-Path $payload 'tools\cloudflared.exe') -Force -ErrorAction SilentlyContinue
           Remove-Item (Join-Path $payload 'cloudflared.exe') -Force -ErrorAction SilentlyContinue
