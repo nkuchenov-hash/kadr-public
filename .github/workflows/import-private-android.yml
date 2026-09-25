@@ -1,0 +1,65 @@
+name: Import current Android build securely
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-private-android.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out public distribution repo
+        uses: actions/checkout@v4
+        with:
+          path: public
+
+      - name: Check out staged KADR Android build
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: release-transfer-android
+          token: ${{ github.token }}
+          path: source
+
+      - name: Verify and publish download file
+        working-directory: public
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='eeeac708c04e2582ee17d096ecbe4768b73e38cd476eb810160cc53156d31ba7'
+          actual=$(sha256sum ../source/KADR-Mobile.apk | awk '{print $1}')
+          test "$actual" = "$expected"
+          mkdir -p downloads
+          cp ../source/KADR-Mobile.apk downloads/KADR-Mobile.apk
+          printf '%s  KADR-Mobile.apk\n' "$expected" > downloads/KADR-Mobile.sha256
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/KADR-Mobile.apk downloads/KADR-Mobile.sha256
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update KADR Companion 1.0.9'
+            git push
+          fi
+
+      - name: Publish Android release asset
+        working-directory: public
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/android-notes.md <<'EOF'
+          KADR Companion 1.0.9.
+
+          Local-first phone → PC connection: direct Wi-Fi/LAN transfer, automatic PC rediscovery after IP changes, no Internet requirement for local transfer, and v3 pairing support.
+          EOF
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release edit android-latest --title 'KADR Companion for Android' --notes-file /tmp/android-notes.md --latest
+            gh release upload android-latest downloads/KADR-Mobile.apk downloads/KADR-Mobile.sha256 --clobber
+          else
+            gh release create android-latest downloads/KADR-Mobile.apk downloads/KADR-Mobile.sha256 --title 'KADR Companion for Android' --notes-file /tmp/android-notes.md --latest
+          fi
