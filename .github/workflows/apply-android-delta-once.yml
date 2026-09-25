@@ -1,0 +1,62 @@
+name: Apply Android delta once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'transfer/android-ready'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Rebuild verified Android 1.0.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'a6b71ed8c5df231d520aaed106c997264cb959a5659f50bfafdf7f4e0467b176  downloads/KADR-Mobile.apk' | sha256sum -c -
+          cat transfer/android/*.b64 | tr -d '\n\r' | base64 -d > /tmp/KADR-Mobile.patch
+          echo '2d955d5edfb78062f9c99c950c783725df5e48d25169993e28137bceeb166c36  /tmp/KADR-Mobile.patch' | sha256sum -c -
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bsdiff
+          bspatch downloads/KADR-Mobile.apk /tmp/KADR-Mobile.apk /tmp/KADR-Mobile.patch
+          echo 'eeeac708c04e2582ee17d096ecbe4768b73e38cd476eb810160cc53156d31ba7  /tmp/KADR-Mobile.apk' | sha256sum -c -
+          cp /tmp/KADR-Mobile.apk downloads/KADR-Mobile.apk
+          cp /tmp/KADR-Mobile.apk kadr-companion.apk
+          printf '%s  %s\n' 'eeeac708c04e2582ee17d096ecbe4768b73e38cd476eb810160cc53156d31ba7' 'KADR-Mobile.apk' > downloads/KADR-Mobile.sha256
+
+      - name: Commit Android and remove transfer data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/KADR-Mobile.apk downloads/KADR-Mobile.sha256
+          git rm -r transfer/android transfer/android-ready .github/workflows/apply-android-delta-once.yml
+          git commit -m 'Publish Android 1.0.9 local-first'
+          git push
+
+      - name: Update Android release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/android-notes.txt <<'EOF'
+          KADR Companion 1.0.9
+
+          Local-first connection fixes:
+          - Wi-Fi/LAN no longer requires Internet access.
+          - Automatic PC rediscovery when the PC IP changes.
+          - Subnet fallback searches for the paired KADR PC by stable ID.
+          - Compatible with the Windows LocalSubnet firewall rule on TCP 8791.
+          EOF
+          gh release edit android-latest --title 'KADR Companion for Android' --notes-file /tmp/android-notes.txt
+          gh release upload android-latest downloads/KADR-Mobile.apk downloads/KADR-Mobile.sha256 kadr-companion.apk --clobber
