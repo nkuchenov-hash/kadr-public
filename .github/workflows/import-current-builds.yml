@@ -1,0 +1,71 @@
+name: Import current KADR builds
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/import-current-builds.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download current Windows and Android builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p downloads
+          curl -fL 'https://raw.githubusercontent.com/nkuchenov-hash/KADR/release-transfer-windows/KADR-Setup.exe?token=B6S5VJ6RY2Y27EDY5LKXXZDKWZ3ULAA' -o downloads/KADR-Setup.exe
+          curl -fL 'https://raw.githubusercontent.com/nkuchenov-hash/KADR/release-transfer-android/KADR-Mobile.apk?token=B6S5VJ4NJFA4TTPJBL2GNOLKWZ4D3AA' -o downloads/KADR-Mobile.apk
+          echo '735152ffebba52df34c0bca839a1121f316ddeb7ddc19cb46889461e9a884250  downloads/KADR-Setup.exe' | sha256sum -c -
+          echo 'a6b71ed8c5df231d520aaed106c997264cb959a5659f50bfafdf7f4e0467b176  downloads/KADR-Mobile.apk' | sha256sum -c -
+          sha256sum downloads/KADR-Setup.exe > downloads/KADR-Setup.sha256
+          sha256sum downloads/KADR-Mobile.apk > downloads/KADR-Mobile.sha256
+
+      - name: Commit current downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/KADR-Setup.exe downloads/KADR-Setup.sha256 downloads/KADR-Mobile.apk downloads/KADR-Mobile.sha256
+          if ! git diff --cached --quiet; then
+            git commit -m 'release: update Windows and Android downloads'
+            git push origin HEAD:main
+          fi
+
+      - name: Publish Windows release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          tag='windows-latest'
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            gh release edit "$tag" --repo "$repo" --title 'KADR for Windows' --notes 'Current public Windows build.' --latest
+            gh release upload "$tag" --repo "$repo" downloads/KADR-Setup.exe downloads/KADR-Setup.sha256 --clobber
+          else
+            gh release create "$tag" --repo "$repo" downloads/KADR-Setup.exe downloads/KADR-Setup.sha256 --title 'KADR for Windows' --notes 'Current public Windows build.' --latest
+          fi
+
+      - name: Publish Android release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          tag='android-latest'
+          cp downloads/KADR-Mobile.apk downloads/kadr-companion.apk
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            gh release edit "$tag" --repo "$repo" --title 'KADR Companion — Android' --notes 'Current signed Android Companion build.' --prerelease
+            gh release upload "$tag" --repo "$repo" downloads/KADR-Mobile.apk downloads/kadr-companion.apk downloads/KADR-Mobile.sha256 --clobber
+          else
+            gh release create "$tag" --repo "$repo" downloads/KADR-Mobile.apk downloads/kadr-companion.apk downloads/KADR-Mobile.sha256 --title 'KADR Companion — Android' --notes 'Current signed Android Companion build.' --prerelease
+          fi
