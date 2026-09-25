@@ -76,6 +76,21 @@
 (function(){
   const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+  const fallbackStories={
+    'windows-latest':{
+      en:{title:'Companion connection gets simpler',lede:'The Windows build now prepares local Companion access during installation, so KADR is ready for direct transfer on the same network.',body:['The installer configures the required local firewall access automatically and keeps it limited to your local network. Old Cloudflare tunnel files are removed instead of hanging around in the background.','Less network archaeology, more screenshots.']},
+      ru:{title:'Подключение Companion стало проще',lede:'Windows-сборка теперь сама готовит локальное подключение Companion при установке, чтобы КАДР был готов к прямой передаче в той же сети.',body:['Установщик автоматически настраивает нужный доступ в брандмауэре и ограничивает его локальной сетью. Старые файлы Cloudflare-туннеля удаляются и больше не остаются висеть в фоне.','Меньше сетевой археологии, больше скриншотов.']}
+    },
+    'android-latest':{
+      en:{title:'Companion finds its way back',lede:'KADR Companion can now reconnect without making you hunt for the computer’s IP address.',body:['It keeps the fast local-network path when available and switches to the encrypted relay when LAN is unavailable. The idea is simple: open Companion and reach KADR instead of troubleshooting Wi-Fi.','Networking should be plumbing, not a hobby.']},
+      ru:{title:'Companion теперь сам находит дорогу назад',lede:'KADR Companion теперь может восстановить соединение без охоты за IP-адресом компьютера.',body:['Когда локальная сеть доступна, используется быстрый прямой путь. Если LAN недоступен, Companion переключается на зашифрованный relay. Идея простая: открыть Companion и попасть в КАДР, а не разбираться с Wi-Fi.','Сеть должна просто работать, а не становиться отдельным хобби.']}
+    },
+    'macos-preview':{
+      en:{title:'KADR lands on macOS',lede:'The first macOS preview brings the basic KADR capture flow to the Mac.',body:['Press Option+Shift+2, select a region, copy it to the clipboard or save it to Pictures/KADR/Screenshots. It is still a preview, so the goal here is the core capture loop rather than feature parity with Windows.','One more platform, considerably fewer excuses not to take a screenshot.']},
+      ru:{title:'КАДР добрался до macOS',lede:'Первая preview-версия переносит базовый сценарий КАДР на Mac.',body:['Нажмите Option+Shift+2, выделите область, скопируйте снимок в буфер или сохраните его в Pictures/KADR/Screenshots. Это пока preview: сейчас важен основной сценарий захвата, а не полное совпадение с Windows-версией.','Ещё одна платформа — и заметно меньше оправданий, чтобы не сделать скриншот.']}
+    }
+  };
+
   function parseSection(raw){
     const text=(raw||'').trim();
     const match=text.match(/^#\s+(.+)$/m);
@@ -111,7 +126,7 @@
       if(!items.length)return;
       const feed=document.getElementById('releaseFeed');
       const generated=items.map(rel=>{
-        const story=splitStory(rel.body);
+        const story=splitStory(rel.body)||fallbackStories[rel.tag_name];
         if(!story)return '';
         const date=new Date(rel.published_at||rel.created_at);
         const dateLabel=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(date).replace(/,/g,'').toUpperCase();
