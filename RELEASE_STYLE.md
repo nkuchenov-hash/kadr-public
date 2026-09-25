@@ -1,39 +1,51 @@
 # KADR Release Story Rules
 
-Every public KADR app release gets a short human-readable story in English and Russian.
+The release journal is for KADR users, not for build logs. Every public app update must read like the first release story on the site and must exist in both English and Russian.
 
 ## Required structure
 
-1. **Title** — short and memorable; it should describe the theme of the update, not repeat the version number.
-2. **Opening** — 1–2 sentences explaining why the update matters to a normal user.
-3. **What actually changed** — only shipped and verified changes. Use concrete behavior, not internal commit language.
-4. **Known limitation, when relevant** — if an important part is still preview/limited, say so plainly.
-5. **Build provenance** — version, private source commit, and Integrated Release run.
+1. **Localized title** — short, memorable, and about the user-visible theme of the update.
+2. **Opening** — one short paragraph explaining why the update matters.
+3. **What changed** — one or two short paragraphs about shipped, verified behavior in normal user language.
+4. **Optional final line** — one light joke or playful sentence when it fits.
+5. **Known limitation** — mention it plainly when it materially affects the user.
+
+Do not put source commits, workflow run IDs, internal branch names, raw commit logs, or other build provenance into the release story shown on the website. Technical provenance belongs in build metadata or internal release records.
 
 ## Tone
 
 - Clear before clever.
+- Human, concise, and concrete.
 - Lightly funny, not stand-up comedy.
-- One joke or playful line is usually enough.
 - Bugs may be mocked only after they are actually fixed.
 - Never claim a feature is fixed, reliable, or shipped unless the released build proves it.
-- No raw commit-log dumps as release notes.
+- Avoid internal engineering language unless the user genuinely needs the term.
 - Avoid corporate phrases such as “we are thrilled to announce”. KADR is a screenshot app, not a new airport terminal.
 
 ## Length
 
-Target roughly 80–180 words per language for ordinary updates. Larger releases may be longer if the user-facing changes genuinely need it.
+Target roughly 50–100 words per language for an ordinary update. Use more only when the user-facing changes genuinely need it.
 
-## Languages
+## Languages and machine-readable format
 
-Every release story must contain both sections in this order:
+Every release story must contain **both** sections, each with its own localized title, in this exact order:
 
 ```text
 EN
 
-<English release story>
+# <English title>
+
+<English opening paragraph>
+
+<English body paragraph(s)>
 
 RU
 
-<Russian release story>
+# <Russian title>
+
+<Russian opening paragraph>
+
+<Russian body paragraph(s)>
 ```
+
+The website must never substitute English text for a missing Russian section. An incomplete release story should not be rendered in the public journal until both languages are present.
