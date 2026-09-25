@@ -12,8 +12,6 @@
     .story h2{font-size:38px;margin:12px 0 18px}
     .story p{margin-top:16px}
     .story .lede{font-size:19px;line-height:1.55}
-    .live-release{border-top:6px solid var(--red)}
-    .status{font-size:12px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--red);margin-bottom:8px}
   </style>
 </head>
 <body>
@@ -130,8 +128,7 @@
         if(!story)return '';
         const date=new Date(rel.published_at||rel.created_at);
         const dateLabel=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(date).replace(/,/g,'').toUpperCase();
-        return '<article class="story live-release">'+
-          '<div class="status" data-lang="en">PUBLIC BUILD</div><div class="status" data-lang="ru">ПУБЛИЧНАЯ СБОРКА</div>'+
+        return '<article class="story">'+
           '<div class="meta">'+esc(dateLabel)+' · '+esc(rel.tag_name||'release')+'</div>'+
           renderLanguage(story.en,'en',rel.html_url)+renderLanguage(story.ru,'ru',rel.html_url)+
           '</article>';
