@@ -1,0 +1,182 @@
+name: Publish local-first Windows installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repack-windows-local.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify current public installer
+        shell: pwsh
+        run: |
+          $expected = '735152ffebba52df34c0bca839a1121f316ddeb7ddc19cb46889461e9a884250'
+          $actual = (Get-FileHash downloads\KADR-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Unexpected source installer: $actual" }
+
+      - name: Extract current KADR payload
+        shell: pwsh
+        run: |
+          $payload = Join-Path $PWD 'build\payload'
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+          $args = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS',("/DIR=`"$payload`""))
+          $process = Start-Process -FilePath (Join-Path $PWD 'downloads\KADR-Setup.exe') -ArgumentList $args -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Source installer failed: $($process.ExitCode)" }
+          Get-Process kadr -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'KADR' -ErrorAction SilentlyContinue
+          Get-ChildItem $payload -Filter 'unins*' -File -ErrorAction SilentlyContinue | Remove-Item -Force
+          Remove-Item (Join-Path $payload 'tools\cloudflared.exe') -Force -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $payload 'cloudflared.exe') -Force -ErrorAction SilentlyContinue
+          if (-not (Test-Path (Join-Path $payload 'kadr.exe'))) { throw 'kadr.exe missing after extraction' }
+
+      - name: Write local-first installer definition
+        shell: pwsh
+        run: |
+          @'
+          #define MyAppName "KADR"
+          #define MyAppVersion "1.0.0"
+          #define MyAppPublisher "KADR"
+          #define MyAppExeName "kadr.exe"
+
+          [Setup]
+          AppId={{69B9C031-3A11-47DE-AE19-D67D36D7716E}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={localappdata}\Programs\KADR
+          DefaultGroupName=KADR
+          DisableProgramGroupPage=yes
+          PrivilegesRequired=admin
+          ArchitecturesAllowed=x64compatible
+          ArchitecturesInstallIn64BitMode=x64compatible
+          OutputDir=build\installer
+          OutputBaseFilename=KADR-Setup
+          UninstallDisplayIcon={app}\{#MyAppExeName}
+          Compression=lzma2
+          SolidCompression=yes
+          WizardStyle=modern
+          CloseApplications=force
+          RestartApplications=no
+
+          [Files]
+          Source: "build\payload\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{autoprograms}\KADR"; Filename: "{app}\{#MyAppExeName}"; Flags: createonlyiffileexists
+          Name: "{autodesktop}\KADR"; Filename: "{app}\{#MyAppExeName}"; Flags: createonlyiffileexists
+
+          [Run]
+          Filename: "{app}\{#MyAppExeName}"; Description: "Launch KADR"; Flags: nowait postinstall skipifsilent
+
+          [Code]
+          const
+            KadrFirewallRule = 'KADR Companion LAN';
+
+          procedure RemoveKadrFirewallRule;
+          var ResultCode: Integer;
+          begin
+            Exec(ExpandConstant('{sys}\netsh.exe'),
+              'advfirewall firewall delete rule name="' + KadrFirewallRule + '"',
+              '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+          end;
+
+          procedure InstallKadrFirewallRule;
+          var
+            ResultCode: Integer;
+            ProgramPath: String;
+          begin
+            ProgramPath := ExpandConstant('{app}\{#MyAppExeName}');
+            RemoveKadrFirewallRule;
+            Exec(ExpandConstant('{sys}\netsh.exe'),
+              'advfirewall firewall add rule name="' + KadrFirewallRule + '" dir=in action=allow ' +
+              'program="' + ProgramPath + '" protocol=TCP localport=8791 remoteip=LocalSubnet profile=any enable=yes',
+              '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+          end;
+
+          procedure RemoveLegacyRelayFiles;
+          begin
+            DeleteFile(ExpandConstant('{localappdata}\KADR\relay\url.txt'));
+            DeleteFile(ExpandConstant('{localappdata}\KADR\relay\tunnel-id.txt'));
+            DeleteFile(ExpandConstant('{localappdata}\KADR\relay\tunnel-config.yml'));
+            DeleteFile(ExpandConstant('{localappdata}\KADR\relay\start-relay-host.cmd'));
+            DeleteFile(ExpandConstant('{localappdata}\KADR\relay\session.json'));
+            DeleteFile(ExpandConstant('{localappdata}\KADR\relay\session_key.txt'));
+            DeleteFile(ExpandConstant('{app}\tools\cloudflared.exe'));
+            DeleteFile(ExpandConstant('{app}\cloudflared.exe'));
+          end;
+
+          function PrepareToInstall(var NeedsRestart: Boolean): String;
+          var ResultCode: Integer;
+          begin
+            Exec(ExpandConstant('{cmd}'), '/C taskkill /F /T /IM kadr.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Exec(ExpandConstant('{cmd}'), '/C taskkill /F /IM cloudflared.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            RemoveLegacyRelayFiles;
+            Result := '';
+          end;
+
+          procedure CurStepChanged(CurStep: TSetupStep);
+          begin
+            if CurStep = ssPostInstall then
+            begin
+              RegWriteStringValue(HKEY_CURRENT_USER,
+                'Software\Microsoft\Windows\CurrentVersion\Run',
+                'KADR', '"' + ExpandConstant('{app}\{#MyAppExeName}') + '" --startup');
+              RemoveLegacyRelayFiles;
+              InstallKadrFirewallRule;
+            end;
+          end;
+
+          procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+          begin
+            if CurUninstallStep = usUninstall then
+            begin
+              RegDeleteValue(HKEY_CURRENT_USER,
+                'Software\Microsoft\Windows\CurrentVersion\Run', 'KADR');
+              RemoveKadrFirewallRule;
+            end;
+          end;
+          '@ | Set-Content -Path local-first.iss -Encoding utf8
+
+      - name: Build local-first installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          New-Item -ItemType Directory -Force -Path build\installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" local-first.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup build failed' }
+          $digest = (Get-FileHash build\installer\KADR-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          Copy-Item build\installer\KADR-Setup.exe downloads\KADR-Setup.exe -Force
+          "$digest  KADR-Setup.exe" | Set-Content downloads\KADR-Setup.sha256 -Encoding ascii
+          Write-Host "KADR-Setup.exe SHA256=$digest"
+
+      - name: Commit public installer
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/KADR-Setup.exe downloads/KADR-Setup.sha256
+          if (-not (git diff --cached --quiet)) {
+            git commit -m 'Update KADR Windows local-first installer'
+            git push
+          }
+
+      - name: Update Windows release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          @'
+          KADR for Windows — local-first Companion connection.
+
+          Direct Wi-Fi/LAN transfer. Installer configures a LocalSubnet-only TCP 8791 firewall rule automatically. External Cloudflare tunnel runtime is not included.
+          '@ | Set-Content release-notes.txt -Encoding utf8
+          gh release edit windows-latest --title 'KADR for Windows' --notes-file release-notes.txt --latest
+          gh release upload windows-latest downloads/KADR-Setup.exe downloads/KADR-Setup.sha256 --clobber
