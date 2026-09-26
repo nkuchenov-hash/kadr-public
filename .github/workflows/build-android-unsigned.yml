@@ -1,4 +1,4 @@
-name: Build and publish Android 1.0.12
+name: Build and publish Android 1.0.13
 
 on:
   push:
@@ -71,21 +71,21 @@ jobs:
           cat > release/notes.md <<EOF
           EN
 
-          # Companion reconnects more reliably
+          # LAN pairing now stays on Wi-Fi
 
-          KADR Companion 1.0.12 improves local-network recovery after IP changes and keeps the exact working computer endpoint after pairing.
+          KADR Companion 1.0.13 forces local desktop traffic onto the physical Wi-Fi network instead of allowing Android to route it through cellular or VPN interfaces.
 
-          It also handles the full 100.64.0.0/10 CGNAT range correctly.
+          Pairing also adds a Wi-Fi-first discovery and subnet recovery path, while the Windows app now retries its mobile receiver automatically if it is not ready.
 
           Source commit: ${source_sha}
 
           RU
 
-          # Companion надёжнее восстанавливает связь
+          # Подключение по локальной сети теперь идёт через Wi-Fi
 
-          KADR Companion 1.0.12 лучше восстанавливает подключение после смены IP и после сопряжения сохраняет именно рабочий адрес компьютера.
+          KADR Companion 1.0.13 принудительно отправляет локальный трафик к компьютеру через физическую Wi-Fi сеть, а не через мобильную сеть или VPN Android.
 
-          Также исправлена обработка всего диапазона CGNAT 100.64.0.0/10.
+          Также добавлен отдельный Wi-Fi-first поиск компьютера и восстановление по локальной подсети, а Windows-приложение автоматически перезапускает мобильный приёмник, если тот оказался не готов.
 
           Исходный commit: ${source_sha}
           EOF
@@ -108,7 +108,7 @@ jobs:
       - name: Retain signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KADR-Mobile-1.0.12-signed
+          name: KADR-Mobile-1.0.13-signed
           path: |
             release/KADR-Mobile.apk
             release/KADR-Mobile.sha256
