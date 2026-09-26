@@ -1,4 +1,4 @@
-name: Build KADR Windows 1.0.12
+name: Build KADR Windows 1.0.13
 
 on:
   push:
@@ -61,17 +61,17 @@ jobs:
           @"
           EN
 
-          # Phone-to-PC connection is more reliable
+          # Mobile receiver now self-recovers
 
-          KADR for Windows 1.0.12 contains the latest Companion connection fixes and local-network discovery support.
+          KADR for Windows 1.0.13 keeps the Companion receiver alive and automatically retries it if the local mobile service is not ready.
 
           Source commit: $sha
 
           RU
 
-          # Связь телефона с компьютером стала надёжнее
+          # Мобильный приёмник теперь восстанавливается сам
 
-          KADR для Windows 1.0.12 содержит актуальные исправления подключения Companion и поиска компьютера в локальной сети.
+          KADR для Windows 1.0.13 поддерживает приёмник Companion активным и автоматически повторно запускает его, если локальный мобильный сервис оказался не готов.
 
           Исходный commit: $sha
           "@ | Set-Content release\notes.md -Encoding utf8
