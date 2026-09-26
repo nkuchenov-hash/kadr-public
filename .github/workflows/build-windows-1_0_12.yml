@@ -1,0 +1,83 @@
+name: Build KADR Windows 1.0.12
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-windows-1_0_12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: main
+          path: source
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Windows
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter build windows --release
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          New-Item -ItemType Directory -Force -Path source\build\installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" source\installer\kadr.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item source\build\installer\KADR-Setup.exe release\KADR-Setup.exe -Force
+          $digest = (Get-FileHash release\KADR-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  KADR-Setup.exe" | Set-Content release\KADR-Setup.sha256 -Encoding ascii
+          git -C source rev-parse HEAD | Set-Content release\source-sha.txt -Encoding ascii
+
+      - name: Publish Windows release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $sha = (Get-Content release\source-sha.txt -Raw).Trim()
+          @"
+          EN
+
+          # Phone-to-PC connection is more reliable
+
+          KADR for Windows 1.0.12 contains the latest Companion connection fixes and local-network discovery support.
+
+          Source commit: $sha
+
+          RU
+
+          # Связь телефона с компьютером стала надёжнее
+
+          KADR для Windows 1.0.12 содержит актуальные исправления подключения Companion и поиска компьютера в локальной сети.
+
+          Исходный commit: $sha
+          "@ | Set-Content release\notes.md -Encoding utf8
+          gh release edit windows-latest --repo $env:GITHUB_REPOSITORY --title 'KADR for Windows' --notes-file release\notes.md --latest
+          if ($LASTEXITCODE -ne 0) {
+            gh release create windows-latest release\KADR-Setup.exe release\KADR-Setup.sha256 --repo $env:GITHUB_REPOSITORY --title 'KADR for Windows' --notes-file release\notes.md --latest
+          } else {
+            gh release upload windows-latest release\KADR-Setup.exe release\KADR-Setup.sha256 --repo $env:GITHUB_REPOSITORY --clobber
+          }
