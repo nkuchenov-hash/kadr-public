@@ -1,4 +1,4 @@
-name: Build Android 1.0.12 unsigned
+name: Build and publish Android 1.0.12
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -33,7 +33,23 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Android release
+      - name: Restore signing key
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+
+      - name: Test and build signed Android release
         working-directory: source/mobile/android
         shell: bash
         run: |
@@ -41,9 +57,59 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon testDebugUnitTest assembleRelease
 
-      - name: Upload APK artifact
+      - name: Prepare release
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='source/mobile/android/app/build/outputs/apk/release/app-release.apk'
+          test -f "$apk"
+          jarsigner -verify "$apk" >/dev/null
+          mkdir -p release
+          cp "$apk" release/KADR-Mobile.apk
+          sha256sum release/KADR-Mobile.apk > release/KADR-Mobile.sha256
+          source_sha=$(git -C source rev-parse HEAD)
+          cat > release/notes.md <<EOF
+          EN
+
+          # Companion reconnects more reliably
+
+          KADR Companion 1.0.12 improves local-network recovery after IP changes and keeps the exact working computer endpoint after pairing.
+
+          It also handles the full 100.64.0.0/10 CGNAT range correctly.
+
+          Source commit: ${source_sha}
+
+          RU
+
+          # Companion надёжнее восстанавливает связь
+
+          KADR Companion 1.0.12 лучше восстанавливает подключение после смены IP и после сопряжения сохраняет именно рабочий адрес компьютера.
+
+          Также исправлена обработка всего диапазона CGNAT 100.64.0.0/10.
+
+          Исходный commit: ${source_sha}
+          EOF
+
+      - name: Publish Android release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          tag='android-latest'
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            gh release edit "$tag" --repo "$repo" --title 'KADR Companion — Android Preview' --notes-file release/notes.md --prerelease
+            gh release upload "$tag" --repo "$repo" release/KADR-Mobile.apk release/KADR-Mobile.sha256 --clobber
+          else
+            gh release create "$tag" --repo "$repo" release/KADR-Mobile.apk release/KADR-Mobile.sha256 --title 'KADR Companion — Android Preview' --notes-file release/notes.md --prerelease
+          fi
+
+      - name: Retain signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KADR-Mobile-1.0.12-unsigned
-          path: source/mobile/android/app/build/outputs/apk/release/*.apk
+          name: KADR-Mobile-1.0.12-signed
+          path: |
+            release/KADR-Mobile.apk
+            release/KADR-Mobile.sha256
           if-no-files-found: error
