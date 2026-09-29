@@ -1,4 +1,4 @@
-name: Build and publish Android 1.0.13
+name: Build and publish Android 1.0.14
 
 on:
   push:
@@ -71,21 +71,21 @@ jobs:
           cat > release/notes.md <<EOF
           EN
 
-          # LAN pairing now stays on Wi-Fi
+          # Connection diagnostics and real Wi-Fi binding
 
-          KADR Companion 1.0.13 forces local desktop traffic onto the physical Wi-Fi network instead of allowing Android to route it through cellular or VPN interfaces.
+          KADR Companion 1.0.14 fixes the missing Android network-state permission that prevented the Wi-Fi binding added in 1.0.13 from actually taking effect.
 
-          Pairing also adds a Wi-Fi-first discovery and subnet recovery path, while the Windows app now retries its mobile receiver automatically if it is not ready.
+          Pairing now retries Wi-Fi binding immediately before the connection attempt and shows a classified diagnostics screen on failure with the QR endpoint, active network, local interfaces, TCP 8791 result, /health result, and discovery outcome.
 
           Source commit: ${source_sha}
 
           RU
 
-          # Подключение по локальной сети теперь идёт через Wi-Fi
+          # Диагностика соединения и реальная привязка к Wi-Fi
 
-          KADR Companion 1.0.13 принудительно отправляет локальный трафик к компьютеру через физическую Wi-Fi сеть, а не через мобильную сеть или VPN Android.
+          KADR Companion 1.0.14 исправляет отсутствовавшее Android-разрешение сети, из-за которого добавленная в 1.0.13 привязка к Wi-Fi фактически не могла сработать.
 
-          Также добавлен отдельный Wi-Fi-first поиск компьютера и восстановление по локальной подсети, а Windows-приложение автоматически перезапускает мобильный приёмник, если тот оказался не готов.
+          Перед подключением Companion повторно привязывается к Wi-Fi, а при ошибке автоматически показывает диагностический экран: адрес из QR, активную сеть, локальные интерфейсы, результат TCP 8791, /health и поиска компьютера.
 
           Исходный commit: ${source_sha}
           EOF
@@ -108,7 +108,7 @@ jobs:
       - name: Retain signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KADR-Mobile-1.0.13-signed
+          name: KADR-Mobile-1.0.14-signed
           path: |
             release/KADR-Mobile.apk
             release/KADR-Mobile.sha256
