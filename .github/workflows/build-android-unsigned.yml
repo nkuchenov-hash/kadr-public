@@ -1,10 +1,8 @@
-name: Build and publish Android 1.0.14
+name: Build and publish Android
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/build-android-unsigned.yml'
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -14,6 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     steps:
       - name: Checkout KADR source
         uses: actions/checkout@v4
@@ -24,24 +23,63 @@ jobs:
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
 
+      - name: Check if KADR changed
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          source_sha=$(git -C source rev-parse HEAD)
+
+          previous_sha="$(
+            gh release view android-latest \
+              --repo "$GITHUB_REPOSITORY" \
+              --json body \
+              -q '.body' 2>/dev/null \
+            | grep -Eo '[0-9a-f]{40}' \
+            | tail -n 1 || true
+          )"
+
+          echo "Current KADR: $source_sha"
+          echo "Published KADR: $previous_sha"
+
+          if [ "$source_sha" = "$previous_sha" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "No changes. Nothing to build."
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "New KADR version found. Building APK."
+          fi
+
       - name: Set up Java 17
+        if: steps.changes.outputs.build == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
+        if: steps.changes.outputs.build == 'true'
         uses: gradle/actions/setup-gradle@v4
 
       - name: Restore signing key
+        if: steps.changes.outputs.build == 'true'
         env:
           KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
+
           test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+
           mkdir -p source/mobile/android/KADR/signing
-          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+
+          base64 -d \
+            source/mobile/android/signing/kadr-preview.keystore.b64 \
+            > source/mobile/android/KADR/signing/kadr-preview.jks
+
           {
             echo 'storeFile=../KADR/signing/kadr-preview.jks'
             printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
@@ -50,6 +88,7 @@ jobs:
           } > source/mobile/android/KADR/signing/key.properties
 
       - name: Test and build signed Android release
+        if: steps.changes.outputs.build == 'true'
         working-directory: source/mobile/android
         shell: bash
         run: |
@@ -58,57 +97,79 @@ jobs:
           ./gradlew --no-daemon testDebugUnitTest assembleRelease
 
       - name: Prepare release
+        if: steps.changes.outputs.build == 'true'
         shell: bash
         run: |
           set -euo pipefail
+
           apk='source/mobile/android/app/build/outputs/apk/release/app-release.apk'
+
           test -f "$apk"
           jarsigner -verify "$apk" >/dev/null
+
           mkdir -p release
+
           cp "$apk" release/KADR-Mobile.apk
           sha256sum release/KADR-Mobile.apk > release/KADR-Mobile.sha256
+
           source_sha=$(git -C source rev-parse HEAD)
+
           cat > release/notes.md <<EOF
           EN
 
-          # Connection diagnostics and real Wi-Fi binding
+          # Latest KADR Companion Android build
 
-          KADR Companion 1.0.14 fixes the missing Android network-state permission that prevented the Wi-Fi binding added in 1.0.13 from actually taking effect.
-
-          Pairing now retries Wi-Fi binding immediately before the connection attempt and shows a classified diagnostics screen on failure with the QR endpoint, active network, local interfaces, TCP 8791 result, /health result, and discovery outcome.
+          Automatically built from the latest KADR source.
 
           Source commit: ${source_sha}
 
           RU
 
-          # Диагностика соединения и реальная привязка к Wi-Fi
+          # Последняя версия KADR Companion для Android
 
-          KADR Companion 1.0.14 исправляет отсутствовавшее Android-разрешение сети, из-за которого добавленная в 1.0.13 привязка к Wi-Fi фактически не могла сработать.
-
-          Перед подключением Companion повторно привязывается к Wi-Fi, а при ошибке автоматически показывает диагностический экран: адрес из QR, активную сеть, локальные интерфейсы, результат TCP 8791, /health и поиска компьютера.
+          Автоматически собрана из актуальной версии KADR.
 
           Исходный commit: ${source_sha}
           EOF
 
       - name: Publish Android release
+        if: steps.changes.outputs.build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+
           repo="$GITHUB_REPOSITORY"
           tag='android-latest'
+
           if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
-            gh release edit "$tag" --repo "$repo" --title 'KADR Companion — Android Preview' --notes-file release/notes.md --prerelease
-            gh release upload "$tag" --repo "$repo" release/KADR-Mobile.apk release/KADR-Mobile.sha256 --clobber
+            gh release edit "$tag" \
+              --repo "$repo" \
+              --title 'KADR Companion — Android Preview' \
+              --notes-file release/notes.md \
+              --prerelease
+
+            gh release upload "$tag" \
+              --repo "$repo" \
+              release/KADR-Mobile.apk \
+              release/KADR-Mobile.sha256 \
+              --clobber
           else
-            gh release create "$tag" --repo "$repo" release/KADR-Mobile.apk release/KADR-Mobile.sha256 --title 'KADR Companion — Android Preview' --notes-file release/notes.md --prerelease
+            gh release create "$tag" \
+              --repo "$repo" \
+              release/KADR-Mobile.apk \
+              release/KADR-Mobile.sha256 \
+              --title 'KADR Companion — Android Preview' \
+              --notes-file release/notes.md \
+              --prerelease
           fi
 
       - name: Retain signed APK artifact
+        if: steps.changes.outputs.build == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: KADR-Mobile-1.0.14-signed
+          name: KADR-Mobile-signed
           path: |
             release/KADR-Mobile.apk
             release/KADR-Mobile.sha256
