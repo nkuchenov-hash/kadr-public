@@ -123,10 +123,17 @@
     .then(items=>{
       if(!items.length)return;
       const feed=document.getElementById('releaseFeed');
-      const generated=items.map(rel=>{
+      // Moving "latest" release tags retain their original published_at
+      // after a new installer is uploaded. Sort and date by actual asset
+      // updates so a fresh Windows build appears above older releases.
+      const releaseTime=rel=>Math.max(
+        Date.parse(rel.published_at||rel.created_at||'')||0,
+        ...(rel.assets||[]).map(asset=>Date.parse(asset.updated_at||'')||0)
+      );
+      const generated=items.slice().sort((a,b)=>releaseTime(b)-releaseTime(a)).map(rel=>{
         const story=splitStory(rel.body)||fallbackStories[rel.tag_name];
         if(!story)return '';
-        const date=new Date(rel.published_at||rel.created_at);
+        const date=new Date(releaseTime(rel));
         const dateLabel=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(date).replace(/,/g,'').toUpperCase();
         return '<article class="story">'+
           '<div class="meta">'+esc(dateLabel)+' · '+esc(rel.tag_name||'release')+'</div>'+
