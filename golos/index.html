@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101516">
+<meta name="description" content="GOLOS — быстрая голосовая диктовка для Windows. Скачать тестовую версию.">
+<title>GOLOS — Скачать для Windows</title>
+<style>
+:root { color-scheme: dark; --bg:#101516; --panel:#172023; --line:#2c393b; --fg:#ecf8f6; --muted:#9aacaa; --accent:#66e5cf; --accent2:#0ea99e; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 88% 24%,#153e3b 0%,transparent 40%),var(--bg);color:var(--fg);min-height:100dvh}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.2;background:radial-gradient(circle at 82% 24%,transparent 0 42px,#35756f 43px 44px,transparent 45px 100px,#35756f 101px 102px,transparent 103px 180px,#35756f 181px 182px,transparent 183px),radial-gradient(circle at 18% 73%,transparent 0 22px,#35756f 23px 24px,transparent 25px 66px,#35756f 67px 68px,transparent 69px)}
+.wrap{max-width:1100px;margin:auto;padding:0 34px;position:relative}
+header{height:90px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:12px;font-size:23px;font-weight:800;letter-spacing:.09em;color:var(--fg);text-decoration:none}
+.mark{height:37px;width:37px;border:2px solid var(--accent);border-radius:9px;display:grid;place-items:center;color:var(--accent);font-size:23px;font-weight:900}
+.switch{display:flex;gap:4px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.switch button{font:inherit;color:var(--muted);border:0;padding:6px 11px;cursor:pointer;background:none;border-radius:7px}
+.switch button.active{background:#294744;color:var(--fg)}
+main{padding:100px 0 84px}
+.eyebrow{color:var(--accent);font-size:16px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+h1{font-size:clamp(48px,8vw,91px);line-height:.98;letter-spacing:-.055em;margin:22px 0 26px;max-width:780px}
+h1 span{color:var(--accent)}
+.desc{font-size:clamp(18px,2.2vw,22px);max-width:590px;color:#b4c5c3;line-height:1.55;margin:0 0 37px}
+.actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.download{display:inline-flex;align-items:center;justify-content:center;gap:16px;min-height:66px;padding:15px 26px;background:var(--accent);color:#092724;font-weight:800;border-radius:12px;text-decoration:none;transition:background .15s,transform .15s;font-size:19px}
+.download:hover{background:#a1ffed;transform:translateY(-2px)}
+.download:focus-visible{outline:3px solid white;outline-offset:4px}
+.download.disabled{opacity:.65;pointer-events:none}
+.download svg{width:22px;height:22px}
+.meta{color:var(--muted);font-size:16px}
+.meta strong{display:block;color:var(--fg);font-size:16px;font-weight:600}
+.status{margin-top:18px;font-size:16px;color:var(--muted);min-height:24px}
+.details{margin-top:90px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;padding-top:30px}
+.details article{max-width:295px}
+.details h2{font-size:18px;margin:0 0 8px;letter-spacing:-.015em}
+.details p{margin:0;color:var(--muted);line-height:1.5}
+footer{color:var(--muted);border-top:1px solid var(--line);padding:24px 0 38px;font-size:16px}
+footer a{color:var(--accent)}
+[hidden]{display:none!important}
+@media(max-width:650px){.wrap{padding:0 22px}header{height:72px}main{padding:70px 0}.details{margin-top:65px;grid-template-columns:1fr;gap:26px}.download{width:100%}.actions{gap:17px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><a class="brand" href="./" aria-label="GOLOS"><span class="mark" aria-hidden="true">G</span> GOLOS</a>
+<div class="switch" role="group" aria-label="Language"><button id="ru" class="active" type="button">RU</button><button id="en" type="button">EN</button></div></header>
+<main>
+<div class="eyebrow" data-ru="Голосовая диктовка для Windows" data-en="Voice typing for Windows">Голосовая диктовка для Windows</div>
+<h1><span data-ru="Говори." data-en="Speak.">Говори.</span><br><span style="color:var(--fg)" data-ru="Текст готов." data-en="Text appears.">Текст готов.</span></h1>
+<p class="desc" data-ru="Диктовка прямо в любое приложение. Локальные модели, горячая клавиша и мгновенная вставка текста — главные цели GOLOS." data-en="Voice typing straight into your apps. Local speech models, a keyboard shortcut, and fast text insertion — the core goals of GOLOS.">Диктовка прямо в любое приложение. Локальные модели, горячая клавиша и мгновенная вставка текста — главные цели GOLOS.</p>
+<div class="actions">
+<a class="download" id="download" href="https://github.com/nkuchenov-hash/kadr-public/releases/download/golos-pr8-preview/GOLOS_PR-8_835a79f4_x64-setup.exe"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m-5-5 5 5 5-5M4 17v3h16v-3"/></svg><span data-ru="Скачать для Windows" data-en="Download for Windows">Скачать для Windows</span></a>
+<div class="meta"><strong>Windows 10/11 · x64</strong><span id="version">GOLOS · Test preview</span></div>
+</div>
+<p class="status" id="status" role="status" aria-live="polite"></p>
+<section class="details">
+<article><h2 data-ru="Локальная диктовка" data-en="Local dictation">Локальная диктовка</h2><p data-ru="Распознавание GigaAM v3 и Parakeet на вашем компьютере." data-en="GigaAM v3 and Parakeet recognition on your computer.">Распознавание GigaAM v3 и Parakeet на вашем компьютере.</p></article>
+<article><h2 data-ru="Вставка по горячей клавише" data-en="Hotkey-to-paste">Вставка по горячей клавише</h2><p data-ru="Диктуйте в активное текстовое поле без копирования вручную." data-en="Dictate into the active text field without copying manually.">Диктуйте в активное текстовое поле без копирования вручную.</p></article>
+<article><h2 data-ru="Тестовая сборка" data-en="Preview build">Тестовая сборка</h2><p data-ru="Это предварительная версия. Установщик обновляет уже установленный GOLOS." data-en="This is a preview build. The installer updates your existing GOLOS.">Это предварительная версия. Установщик обновляет уже установленный GOLOS.</p></article>
+</section>
+</main>
+<footer><span data-ru="GOLOS · Публичные тестовые сборки" data-en="GOLOS · Public preview builds">GOLOS · Публичные тестовые сборки</span> · <a href="https://github.com/nkuchenov-hash/kadr-public/releases/tag/golos-pr8-preview" data-ru="Все файлы релиза" data-en="Release assets">Все файлы релиза</a></footer>
+</div>
+<script>
+(()=>{'use strict';
+const texts=[...document.querySelectorAll('[data-ru][data-en]')];
+let lang='ru';
+function updateLanguage(l){lang=l;document.documentElement.lang=l;texts.forEach(el=>el.textContent=el.dataset[l]);document.querySelector('#ru').classList.toggle('active',l==='ru');document.querySelector('#en').classList.toggle('active',l==='en');document.title=l==='ru'?'GOLOS — Скачать для Windows':'GOLOS — Download for Windows';}
+document.querySelector('#ru').addEventListener('click',()=>updateLanguage('ru'));
+document.querySelector('#en').addEventListener('click',()=>updateLanguage('en'));
+const repo='https://api.github.com/repos/nkuchenov-hash/kadr-public/releases/tags/golos-pr8-preview';
+const status=document.querySelector('#status'),download=document.querySelector('#download'),version=document.querySelector('#version');
+fetch(repo,{headers:{Accept:'application/vnd.github+json'},cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release HTTP '+r.status);return r.json()}).then(release=>{
+ const assets=(release.assets||[]).filter(a=>/^GOLOS_PR-8_[a-f0-9]{8}_x64-setup\.exe$/i.test(a.name)&&a.state==='uploaded');
+ assets.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+ if(!assets.length)throw new Error('No installer available');
+ const newest=assets[0]; download.href=newest.browser_download_url;
+ const revision=newest.name.match(/PR-8_([a-f0-9]{8})/i)?.[1]||'preview';
+ version.textContent='Preview · '+revision+' · '+(newest.size/1e6).toFixed(1)+' MB';
+ status.textContent='';
+}).catch(()=>{status.textContent=lang==='ru'?'Не удалось проверить обновления. Кнопка ведёт к последней резервной сборке.':'Could not check for updates. The button links to the backup preview build.';});
+})();
+</script>
+</body>
+</html>
