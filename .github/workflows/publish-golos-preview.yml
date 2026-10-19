@@ -16,9 +16,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat golos-preview/chunks/part-*.txt | tr -d '\n\r' | base64 --decode > GOLOS_PR-8_835a79f4_x64-setup.exe
-          echo "6307fcd79149d3f186ead47a160e0256bb6081211c754dc95be5b1e759116475  GOLOS_PR-8_835a79f4_x64-setup.exe" | sha256sum -c -
-          test "$(stat -c%s GOLOS_PR-8_835a79f4_x64-setup.exe)" = "8894422"
+          cat golos-preview/chunks/part-*.txt | tr -d '\n\r' | base64 --decode > GOLOS_PR-8_a4805309_x64-setup.exe
+          echo "3e6b4c9ac71eaec6a4fd64083378b7b84928f49ebffbd980fb3764caac00425e  GOLOS_PR-8_a4805309_x64-setup.exe" | sha256sum -c -
+          test "$(stat -c%s GOLOS_PR-8_a4805309_x64-setup.exe)" = "8898967"
       - name: Publish publicly accessible standalone test installer
         shell: bash
         env:
@@ -26,10 +26,10 @@ jobs:
         run: |
           set -euo pipefail
           TAG="golos-pr8-preview"
-          ASSET="GOLOS_PR-8_835a79f4_x64-setup.exe"
+          ASSET="GOLOS_PR-8_a4805309_x64-setup.exe"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ASSET" --clobber
           else
-            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "GOLOS PR #8 — Windows test installer" --notes "Standalone public download mirror of the GOLOS private PR #8 Windows preview. Built and tested by GOLOS CI; installer SHA256 6307fcd79149d3f186ead47a160e0256bb6081211c754dc95be5b1e759116475. This is a preview, not the stable KADR release." --prerelease --latest=false
+            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "GOLOS PR #8 — Windows test installer" --notes "Standalone public download mirror of the GOLOS private PR #8 Windows preview. Built and tested by GOLOS CI; installer SHA256 3e6b4c9ac71eaec6a4fd64083378b7b84928f49ebffbd980fb3764caac00425e. This is a preview, not the stable KADR release." --prerelease --latest=false
           fi
           gh release view "$TAG" --json assets,url --jq '{url, assets: [.assets[].name]}'
