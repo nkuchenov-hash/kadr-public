@@ -53,6 +53,7 @@ jobs:
           test -s "$apk" && test -s "$installer"
           mkdir -p release
           cp "$apk" release/KADR-Mobile.apk
+          cp "$apk" release/kadr-companion.apk
           cp "$installer" release/KADR-Setup.exe
           sha256sum release/KADR-Mobile.apk > release/KADR-Mobile.sha256
           sha256sum release/KADR-Setup.exe > release/KADR-Setup.sha256
@@ -110,7 +111,7 @@ jobs:
           EOF
 
           gh release edit android-latest --repo "$GITHUB_REPOSITORY" --title "KADR Companion 1.0.17 — Android" --notes-file release/android-notes.md
-          gh release upload android-latest --repo "$GITHUB_REPOSITORY" release/KADR-Mobile.apk release/KADR-Mobile.sha256 --clobber
+          gh release upload android-latest --repo "$GITHUB_REPOSITORY" release/KADR-Mobile.apk release/kadr-companion.apk release/KADR-Mobile.sha256 --clobber
 
           gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title "KADR Windows — Companion connectivity fixes" --notes-file release/windows-notes.md
           gh release upload windows-latest --repo "$GITHUB_REPOSITORY" release/KADR-Setup.exe release/KADR-Setup.sha256 --clobber
