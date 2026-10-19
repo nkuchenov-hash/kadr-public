@@ -1,0 +1,129 @@
+name: Publish CI-verified KADR Windows and Android binaries
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-verified-kadr-20261019.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: kadr-release-verification-gate
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_RUN_ID: '39250708253'
+      EXPECTED_SOURCE_SHA: '2c1a4d0810f3fdd97dd1d25dd0a5123550229a73'
+    steps:
+      - name: Verify both jobs completed and passed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh run view "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN_ID/jobs?per_page=30" > /tmp/verified-jobs.json
+          node -e "const x=require('/tmp/verified-jobs.json'); if(x.jobs.length!==2||x.jobs.some(j=>j.conclusion!=='success')){process.exit(1)}"
+
+      - name: Download both tested release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verified/android verified/windows
+          gh run download "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name KADR-Companion-Android-verified-build --dir verified/android
+          gh run download "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name KADR-Windows-verified-build --dir verified/windows
+
+      - name: Check same source commit, files, and Android signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_android=$(find verified/android -type f -name 'source-sha.txt' -print -quit)
+          source_windows=$(find verified/windows -type f -name 'source-sha.txt' -print -quit)
+          apk=$(find verified/android -type f -name 'app-release.apk' -print -quit)
+          installer=$(find verified/windows -type f -name 'KADR-Setup.exe' -print -quit)
+          test -n "$source_android" && test -n "$source_windows" && test -n "$apk" && test -n "$installer"
+          test "$(tr -d '[:space:]' < "$source_android")" = "$EXPECTED_SOURCE_SHA"
+          test "$(tr -d '[:space:]' < "$source_windows")" = "$EXPECTED_SOURCE_SHA"
+          test -s "$apk" && test -s "$installer"
+          mkdir -p release
+          cp "$apk" release/KADR-Mobile.apk
+          cp "$installer" release/KADR-Setup.exe
+          sha256sum release/KADR-Mobile.apk > release/KADR-Mobile.sha256
+          sha256sum release/KADR-Setup.exe > release/KADR-Setup.sha256
+          keytool -printcert -jarfile release/KADR-Mobile.apk | grep -q 'Owner:'
+          echo "Verified same source commit: $EXPECTED_SOURCE_SHA"
+
+      - name: Publish signed Android and Windows assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release/android-notes.md <<EOF
+          EN
+
+          # KADR Companion 1.0.17 — connectivity and delivery fixes
+
+          Improved Android Wi-Fi/VPN route selection, authenticated relay QR pairing, real Bluetooth delivery fallback for OS-paired PCs, safe retry queue behavior when desktop is offline.
+
+          Android unit tests, desktop receiver tests, relay offline-delivery tests, signature validation and Windows companion build passed in verification run $VERIFIED_RUN_ID.
+
+          Hardware connection in an individual VPN environment has not been independently validated.
+
+          Source commit: $EXPECTED_SOURCE_SHA
+
+          RU
+
+          # KADR Companion 1.0.17 — исправления подключения и передачи
+
+          Улучшен выбор маршрута при VPN, исправлены данные QR для резервного relay, подключена Bluetooth-передача на сопряжённый Windows-компьютер, сохранение файлов в очереди при недоступном ПК.
+
+          Автоматические тесты Android, приёмника Windows и relay, проверка подписи APK и сборка Windows прошли успешно. Работа на конкретном телефоне с VPN пока отдельно не проверена.
+
+          Исходный commit: $EXPECTED_SOURCE_SHA
+          EOF
+
+          cat > release/windows-notes.md <<EOF
+          EN
+
+          # KADR Windows — verified Companion integration build
+
+          Uses the same private KADR source as the Android release. Includes complete relay QR pairing, Bluetooth inbox handling and preserved relay configuration across upgrades.
+
+          Compiled on Windows 2022; Flutter analysis, pairing and installer regression tests passed in verification run $VERIFIED_RUN_ID. Hardware pairing still needs validation.
+
+          Source commit: $EXPECTED_SOURCE_SHA
+
+          RU
+
+          # KADR Windows — проверенная сборка интеграции Companion
+
+          Та же версия исходного кода, что и в Android. Полные данные сопряжения через QR, Bluetooth-приёмник, сохранение настроек relay при обновлении.
+
+          Сборка Windows, Flutter-анализ и тесты приёмника и установщика завершились успешно. Работа с реальным телефоном ещё требует проверки.
+
+          Исходный commit: $EXPECTED_SOURCE_SHA
+          EOF
+
+          gh release edit android-latest --repo "$GITHUB_REPOSITORY" --title "KADR Companion 1.0.17 — Android" --notes-file release/android-notes.md
+          gh release upload android-latest --repo "$GITHUB_REPOSITORY" release/KADR-Mobile.apk release/KADR-Mobile.sha256 --clobber
+
+          gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title "KADR Windows — Companion connectivity fixes" --notes-file release/windows-notes.md
+          gh release upload windows-latest --repo "$GITHUB_REPOSITORY" release/KADR-Setup.exe release/KADR-Setup.sha256 --clobber
+
+      - name: Verify public release metadata and exact artifact sizes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for platform in android windows; do
+            case "$platform" in
+              android) tag=android-latest; filename=KADR-Mobile.apk ;;
+              windows) tag=windows-latest; filename=KADR-Setup.exe ;;
+            esac
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json body,assets > "/tmp/$platform-release.json"
+            node -e "const r=require('/tmp/$platform-release.json'); if(!r.body.includes(process.env.EXPECTED_SOURCE_SHA)||!r.assets.find(a=>a.name===process.argv[1]&&a.size>1000000)) process.exit(1)" "$filename"
+          done
