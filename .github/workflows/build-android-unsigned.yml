@@ -1,8 +1,8 @@
 name: Build and publish Android
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'
+  # Release only after an explicit verification/approval. Pushing every main
+  # commit straight to android-latest published incomplete fixes as latest.
   workflow_dispatch:
 
 permissions:
