@@ -20,7 +20,7 @@ The live source `index.html` currently references **separate** `windows-latest` 
 
 ## Distribution rule
 
-A Windows installer and Android APK are published here only as a matched pair produced by the private **Integrated Release** workflow. The site Download buttons resolve to the latest public GitHub Release assets:
+The required release policy is to publish a compatible Windows installer and Android APK built from a validated private **Integrated Release** workflow. **Current live site links reference separate latest release tags**, so a matched pair must be verified from build metadata before compatibility is claimed. The site Download buttons reference these GitHub Release assets:
 
 - `KADR-Setup.exe`
 - `KADR-Mobile.apk`
