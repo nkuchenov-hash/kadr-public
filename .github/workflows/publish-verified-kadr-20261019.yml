@@ -56,7 +56,7 @@ jobs:
           cp "$installer" release/KADR-Setup.exe
           sha256sum release/KADR-Mobile.apk > release/KADR-Mobile.sha256
           sha256sum release/KADR-Setup.exe > release/KADR-Setup.sha256
-          keytool -printcert -jarfile release/KADR-Mobile.apk | grep -q 'Owner:'
+          jarsigner -verify release/KADR-Mobile.apk >/dev/null
           echo "Verified same source commit: $EXPECTED_SOURCE_SHA"
 
       - name: Publish signed Android and Windows assets
