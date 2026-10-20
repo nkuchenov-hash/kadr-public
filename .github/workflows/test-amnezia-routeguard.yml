@@ -1,0 +1,23 @@
+name: Test Amnezia LAN Route Guard
+
+on:
+  push:
+    paths:
+      - 'tools/KADR-Amnezia-RouteGuard.ps1'
+      - 'tools/Test-KADR-Amnezia-RouteGuard.ps1'
+      - '.github/workflows/test-amnezia-routeguard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate own-IP-only route repair without changing host routes
+        shell: powershell
+        run: .\tools\Test-KADR-Amnezia-RouteGuard.ps1
