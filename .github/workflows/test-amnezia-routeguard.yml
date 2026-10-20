@@ -64,8 +64,9 @@ jobs:
           ) -DestinationPath $zip -Force
           if (-not (Test-Path $zip)) { throw 'Package is missing' }
           $tag = 'amnezia-routeguard-latest'
-          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0) {
+          $existingTags = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName | ConvertFrom-Json | Select-Object -ExpandProperty tagName)
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check release tags' }
+          if ($existingTags -notcontains $tag) {
             gh release create $tag --repo $env:GITHUB_REPOSITORY --title 'KADR Amnezia LAN Route Guard' --notes 'Opt-in LAN self-route repair for AmneziaVPN on Windows. Does not disable VPN or KillSwitch; cannot bypass a blocking KillSwitch. Requires one-time administrator installation.'
             if ($LASTEXITCODE -ne 0) { throw 'Could not create release' }
           }
