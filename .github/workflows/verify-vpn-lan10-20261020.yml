@@ -1,0 +1,55 @@
+name: Verify Android LAN-10 VPN recovery change
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-vpn-lan10-20261020.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-vpn-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check private KADR LAN-10 fix source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: fix/vpn-lan10-no-false-fallback-20261020
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+
+      - name: Verify exact patch revision
+        shell: bash
+        run: |
+          git -C source rev-parse HEAD
+          test "$(git -C source rev-parse HEAD)" = "f9b666933e212e3883ed7b6345c0e29a6012254c"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Android unit tests
+        working-directory: source/mobile/android
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Compile Android APK without publishing
+        working-directory: source/mobile/android
+        shell: bash
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify generated debug APK
+        shell: bash
+        run: test -s source/mobile/android/app/build/outputs/apk/debug/app-debug.apk
