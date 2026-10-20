@@ -1,4 +1,4 @@
-# KADR AmneziaVPN route recovery (Windows 10/11, PowerShell 5.1+).
+﻿# KADR AmneziaVPN route recovery (Windows 10/11, PowerShell 5.1+).
 # Opt-in. Does not change KillSwitch, firewall rules, VPN settings, or default route.
 # Repairs only AmneziaVPN /32 routes incorrectly assigned to this PC's own
 # active physical private IPv4 address.
