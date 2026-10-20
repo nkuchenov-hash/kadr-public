@@ -1,5 +1,8 @@
 name: Publish verified KADR VPN pairing 1.0.18
 on:
+  push:
+    paths:
+      - '.github/workflows/publish-verified-kadr-vpn-pr60.yml'
   workflow_dispatch:
 
 permissions:
