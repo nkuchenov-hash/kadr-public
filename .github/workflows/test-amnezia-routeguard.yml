@@ -21,3 +21,26 @@ jobs:
       - name: Validate own-IP-only route repair without changing host routes
         shell: powershell
         run: .\tools\Test-KADR-Amnezia-RouteGuard.ps1
+      - name: Install, start and uninstall scheduled recovery task
+        shell: powershell
+        run: |
+          $guard = Join-Path $PWD 'tools\KADR-Amnezia-RouteGuard.ps1'
+          $exe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+          try {
+            & $exe -NoProfile -ExecutionPolicy Bypass -File $guard -Install
+            if ($LASTEXITCODE -ne 0) { throw "Route guard task install failed: $LASTEXITCODE" }
+            Start-Sleep -Seconds 2
+            $task = Get-ScheduledTask -TaskName 'KADR Amnezia LAN Route Guard'
+            if ($null -eq $task -or $task.State -ne 'Running') {
+              throw "Route guard did not enter Running state: $($task.State)"
+            }
+            if (-not (Test-Path "$env:ProgramFiles\KADR Route Guard\KADR-Amnezia-RouteGuard.ps1")) {
+              throw 'Protected route guard script was not installed'
+            }
+          } finally {
+            & $exe -NoProfile -ExecutionPolicy Bypass -File $guard -Uninstall
+            if ($LASTEXITCODE -ne 0) { throw "Route guard uninstall failed: $LASTEXITCODE" }
+          }
+          if (Get-ScheduledTask -TaskName 'KADR Amnezia LAN Route Guard' -ErrorAction SilentlyContinue) {
+            throw 'Scheduled task remained after uninstall'
+          }
