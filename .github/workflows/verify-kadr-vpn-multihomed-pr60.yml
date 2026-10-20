@@ -1,0 +1,123 @@
+name: Verify KADR VPN multihomed pairing PR60
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-kadr-vpn-multihomed-pr60.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout private KADR PR60
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: fix/vpn-multihomed-pairing-v4
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+      - name: Verify tested revision
+        run: test "$(git -C source rev-parse HEAD)" = "bb8ff6f5151b1ec8b6ad367fc60fb89a97ea2f39"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Verify Windows QR contains VPN fallback
+        working-directory: source
+        run: flutter test test/mobile_relay_qr_persistence_test.dart test/mobile_screenshot_receiver_test.dart
+      - name: Analyze Windows QR changes
+        working-directory: source
+        run: flutter analyze lib/core/services/mobile_pairing_service.dart lib/core/services/mobile_screenshot_receiver.dart --no-fatal-infos --no-fatal-warnings
+      - name: Test Android direct transfer and pairing
+        working-directory: source/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - name: Restore Android signing key
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+      - name: Build signed Android APK
+        working-directory: source/mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/apk/release/app-release.apk >/dev/null
+      - name: Retain verified Android APK without publishing release
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-VPN-PR60-Android
+          path: source/mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 3
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout private KADR PR60
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: fix/vpn-multihomed-pairing-v4
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+      - name: Verify tested revision
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne 'bb8ff6f5151b1ec8b6ad367fc60fb89a97ea2f39') { throw 'Unexpected source SHA' }
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve Flutter packages
+        working-directory: source
+        run: flutter pub get
+      - name: Test pairing QR and receiver
+        working-directory: source
+        run: flutter test test/mobile_relay_qr_persistence_test.dart test/mobile_screenshot_receiver_test.dart
+      - name: Build Windows KADR
+        working-directory: source
+        run: flutter build windows --release
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Build installer
+        working-directory: source
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build\installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\kadr.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          if (-not (Test-Path 'build\installer\KADR-Setup.exe')) { throw 'Installer missing' }
+      - name: Retain verified Windows installer without publishing release
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-VPN-PR60-Windows
+          path: source/build/installer/KADR-Setup.exe
+          retention-days: 3
+          if-no-files-found: error
