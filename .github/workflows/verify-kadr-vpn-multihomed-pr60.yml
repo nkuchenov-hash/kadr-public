@@ -22,7 +22,7 @@ jobs:
           path: source
           persist-credentials: false
       - name: Verify tested revision
-        run: test "$(git -C source rev-parse HEAD)" = "bb8ff6f5151b1ec8b6ad367fc60fb89a97ea2f39"
+        run: test "$(git -C source rev-parse HEAD)" = "bff3e1dd105cd0657eb9280691910ea0e9ede733"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -90,7 +90,7 @@ jobs:
       - name: Verify tested revision
         shell: pwsh
         run: |
-          if ((git -C source rev-parse HEAD).Trim() -ne 'bb8ff6f5151b1ec8b6ad367fc60fb89a97ea2f39') { throw 'Unexpected source SHA' }
+          if ((git -C source rev-parse HEAD).Trim() -ne 'bff3e1dd105cd0657eb9280691910ea0e9ede733') { throw 'Unexpected source SHA' }
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
