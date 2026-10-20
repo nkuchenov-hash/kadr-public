@@ -1,4 +1,4 @@
-name: Build KADR Windows 1.0.13
+name: Build KADR Windows — manual scroll controller hotfix
 
 on:
   push:
@@ -12,14 +12,15 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 40
     steps:
       - name: Checkout KADR source
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: main
+          # Pin to PR #58 fixed source.
+          ref: f2dc5dbb3d64e8c189f42535f232c39d8c1b2965
           path: source
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
@@ -36,8 +37,15 @@ jobs:
         run: |
           flutter config --enable-windows-desktop
           flutter pub get
+          $expected = 'f2dc5dbb3d64e8c189f42535f232c39d8c1b2965'
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $expected) { throw "Unexpected KADR source commit: $actual" }
           flutter analyze --no-fatal-infos --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/manual_scroll_capture_test.dart test/video_hotkey_contract_test.dart test/p0_native_region_capture_test.dart test/p0_region_handoff_latency_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build installer
         shell: pwsh
@@ -61,17 +69,17 @@ jobs:
           @"
           EN
 
-          # Mobile receiver now self-recovers
+          # Long screenshot buttons now appear immediately
 
-          KADR for Windows 1.0.13 keeps the Companion receiver alive and automatically retries it if the local mobile service is not ready.
+          Fixed manual scrolling screenshots: Alt+Shift+S, draw a rectangle and release the mouse. The selection is confirmed immediately; a floating Add frame / Finish / Cancel controller appears, allowing the user to scroll the chat manually. No hidden Enter confirmation is required. Regular screenshots and video-region selection are unchanged.
 
           Source commit: $sha
 
           RU
 
-          # Мобильный приёмник теперь восстанавливается сам
+          # Кнопки длинного скриншота появляются сразу
 
-          KADR для Windows 1.0.13 поддерживает приёмник Companion активным и автоматически повторно запускает его, если локальный мобильный сервис оказался не готов.
+          Исправлен режим длинного скриншота: Alt+Shift+S, выделение области, отпускание мыши. Выделение сразу подтверждается и открывается панель «Добавить / Готово / Отмена», позволяющая самостоятельно прокручивать чат. Дополнительное нажатие Enter не требуется. Обычные скриншоты и выбор области записи видео не изменены.
 
           Исходный commit: $sha
           "@ | Set-Content release\notes.md -Encoding utf8
