@@ -5,11 +5,14 @@ on:
     paths:
       - 'tools/KADR-Amnezia-RouteGuard.ps1'
       - 'tools/Test-KADR-Amnezia-RouteGuard.ps1'
+      - 'tools/INSTALL-RouteGuard.cmd'
+      - 'tools/UNINSTALL-RouteGuard.cmd'
+      - 'tools/README-RouteGuard-RU.txt'
       - '.github/workflows/test-amnezia-routeguard.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   regression:
@@ -44,3 +47,27 @@ jobs:
           if (Get-ScheduledTask -TaskName 'KADR Amnezia LAN Route Guard' -ErrorAction SilentlyContinue) {
             throw 'Scheduled task remained after uninstall'
           }
+
+      - name: Publish tested route guard package
+        if: github.ref == 'refs/heads/main'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -Path dist -ItemType Directory -Force | Out-Null
+          $zip = Join-Path $PWD 'dist\KADR-Amnezia-RouteGuard.zip'
+          Compress-Archive -Path @(
+            'tools\KADR-Amnezia-RouteGuard.ps1',
+            'tools\INSTALL-RouteGuard.cmd',
+            'tools\UNINSTALL-RouteGuard.cmd',
+            'tools\README-RouteGuard-RU.txt'
+          ) -DestinationPath $zip -Force
+          if (-not (Test-Path $zip)) { throw 'Package is missing' }
+          $tag = 'amnezia-routeguard-latest'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title 'KADR Amnezia LAN Route Guard' --notes 'Opt-in LAN self-route repair for AmneziaVPN on Windows. Does not disable VPN or KillSwitch; cannot bypass a blocking KillSwitch. Requires one-time administrator installation.'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create release' }
+          }
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY $zip --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish package' }
