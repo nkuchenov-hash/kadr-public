@@ -1,0 +1,102 @@
+name: Publish verified KADR VPN pairing 1.0.18
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: kadr-release-verification-gate
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_RUN_ID: '39436976564'
+      VERIFIED_SOURCE_SHA: '70efb8e29c26cb160dc11ca82c8d2c76341dac82'
+    steps:
+      - name: Require both verified build jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh run view "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN_ID/jobs?per_page=30" > /tmp/verify-jobs.json
+          node -e "const j=require('/tmp/verify-jobs.json').jobs; if(j.length!==2 || j.some(x=>x.conclusion!=='success')) process.exit(1);"
+      - name: Retrieve signed Android APK and tested Windows installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kadr-verified/android /tmp/kadr-verified/windows release
+          gh run download "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name KADR-VPN-PR60-Android --dir /tmp/kadr-verified/android
+          gh run download "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name KADR-VPN-PR60-Windows --dir /tmp/kadr-verified/windows
+          apk="$(find /tmp/kadr-verified/android -name app-release.apk -type f -print -quit)"
+          setup="$(find /tmp/kadr-verified/windows -name KADR-Setup.exe -type f -print -quit)"
+          test -s "$apk" && test -s "$setup"
+          cp "$apk" release/KADR-Mobile.apk
+          cp "$apk" release/kadr-companion.apk
+          cp "$setup" release/KADR-Setup.exe
+          jarsigner -verify release/KADR-Mobile.apk >/dev/null
+          sha256sum release/KADR-Mobile.apk > release/KADR-Mobile.sha256
+          sha256sum release/KADR-Setup.exe > release/KADR-Setup.sha256
+      - name: Prepare accurate release notes
+        shell: bash
+        run: |
+          cat > release/android-notes.md <<EOF
+          EN
+
+          # KADR Companion 1.0.18 — direct Wi-Fi and VPN pairing
+
+          The QR advertises the Windows desktop's Wi-Fi and private VPN addresses. Android verifies the desktop identity at each candidate, retains the successful route and retries alternatives after a connection failure. Works with VPN KillSwitch where the VPN allows device-to-device connectivity. Offline transfers remain queued until acknowledged.
+
+          Android unit tests, Flutter receiver/QR tests and signed APK build passed in verification run $VERIFIED_RUN_ID. Live phone pairing on the NEW build still requires user verification.
+
+          Source commit: $VERIFIED_SOURCE_SHA
+
+          RU
+
+          # KADR Companion 1.0.18 — Wi-Fi и VPN без ручных маршрутов
+
+          QR-код содержит Wi-Fi и VPN адреса компьютера. Телефон проверяет идентификатор KADR, выбирает доступный адрес, запоминает его и переключается на запасной при сбое. Работает с KillSwitch, если VPN разрешает связь устройств. Файлы остаются в очереди до подтверждения доставки.
+
+          Android-тесты, Flutter-тесты приёмника и QR, подписанная сборка проверены. Сопряжение нового APK с реальным телефоном требует проверки пользователем.
+
+          Исходный commit: $VERIFIED_SOURCE_SHA
+          EOF
+          cat > release/windows-notes.md <<EOF
+          EN
+
+          # KADR Windows — multihomed mobile pairing
+
+          QR pairing publishes both local Wi-Fi and private VPN endpoints, allowing Android Companion 1.0.18 to connect directly when KillSwitch blocks physical LAN routes. Built and tested with the same private KADR source as Android.
+
+          Source commit: $VERIFIED_SOURCE_SHA
+
+          RU
+
+          # KADR Windows — сопряжение по Wi-Fi и VPN
+
+          QR содержит адреса Wi-Fi и приватного VPN интерфейса; KADR Companion 1.0.18 автоматически выбирает доступный адрес. Проверены сборка Windows, Flutter-тесты приёмника и создание инсталлятора.
+
+          Исходный commit: $VERIFIED_SOURCE_SHA
+          EOF
+      - name: Publish Android and Windows verified releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit android-latest --repo "$GITHUB_REPOSITORY" --title 'KADR Companion 1.0.18 — Android' --notes-file release/android-notes.md
+          gh release upload android-latest --repo "$GITHUB_REPOSITORY" release/KADR-Mobile.apk release/kadr-companion.apk release/KADR-Mobile.sha256 --clobber
+          gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title 'KADR Windows — VPN/LAN auto pairing' --notes-file release/windows-notes.md
+          gh release upload windows-latest --repo "$GITHUB_REPOSITORY" release/KADR-Setup.exe release/KADR-Setup.sha256 --clobber
+      - name: Verify public releases reference exact tested source and real binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for platform in android windows; do
+            if [ "$platform" = android ]; then tag=android-latest; file=KADR-Mobile.apk; else tag=windows-latest; file=KADR-Setup.exe; fi
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json body,assets > "/tmp/$platform.json"
+            node -e "let x=require('/tmp/$platform.json'); if(!x.body.includes(process.env.VERIFIED_SOURCE_SHA)||!x.assets.some(a=>a.name===process.argv[1]&&a.size>1000000)) process.exit(1)" "$file"
+          done
