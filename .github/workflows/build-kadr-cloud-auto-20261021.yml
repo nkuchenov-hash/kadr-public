@@ -1,0 +1,182 @@
+name: Build KADR Auto Cloud Windows + Android 1.0.20 Preview
+on:
+  push:
+    paths:
+      - '.github/workflows/build-kadr-cloud-auto-20261021.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kadr-personal-cloud-auto-both-20261021
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 55
+    env:
+      SOURCE_SHA: a617c771003e52c4179eb284738ed66897296c1c
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+    steps:
+      - name: Check out exact KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: a617c771003e52c4179eb284738ed66897296c1c
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+      - name: Validate source revision
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw "Source SHA mismatch" }
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Test QR, receiver and relay hygiene
+        working-directory: source
+        run: flutter test test/mobile_relay_qr_persistence_test.dart test/mobile_screenshot_receiver_test.dart test/relay_autostart_hygiene_test.dart
+      - name: Build Windows with embedded cloud endpoint
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL"
+          if ($LASTEXITCODE -ne 0) { throw "Windows compilation failed" }
+      - name: Compile complete installer
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          New-Item -ItemType Directory -Force -Path build/installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "build/installer/KADR-Setup.exe")) { throw "Windows setup failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Auto-Cloud-Windows-Preview
+          path: source/build/installer/KADR-Setup.exe
+          if-no-files-found: error
+          retention-days: 3
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      SOURCE_SHA: a617c771003e52c4179eb284738ed66897296c1c
+    steps:
+      - name: Check out exact KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: a617c771003e52c4179eb284738ed66897296c1c
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+      - name: Validate source revision
+        run: test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Android pairing and transfer tests
+        working-directory: source/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest
+      - name: Restore KADR Android signing key
+        shell: bash
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+      - name: Build signed KADR Android 1.0.20 APK
+        working-directory: source/mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/apk/release/app-release.apk >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Auto-Cloud-Android-Preview
+          path: source/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: [windows, android]
+    if: ${{ needs.windows.result == 'success' && needs.android.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: KADR-Auto-Cloud-Windows-Preview
+          path: windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: KADR-Auto-Cloud-Android-Preview
+          path: android
+      - name: Validate binaries and publish a single two-app test release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s windows/KADR-Setup.exe
+          test -s android/app-release.apk
+          cp windows/KADR-Setup.exe KADR-Windows-Auto-Cloud-Setup.exe
+          cp android/app-release.apk KADR-Companion-Auto-Cloud-1.0.20.apk
+          sha256sum KADR-Windows-Auto-Cloud-Setup.exe > Windows.sha256
+          sha256sum KADR-Companion-Auto-Cloud-1.0.20.apk > Android.sha256
+          cat > release-notes.md <<'EOF'
+          # KADR — Automatic Personal Cloud Preview
+
+          Two installer files, no manual configuration, no .cmd files, no cloud host field.
+          
+          Install KADR Windows normally and install Android Companion 1.0.20.
+          Open Windows KADR Settings > Mobile Devices, scan QR with Android.
+          Windows automatically connects to the personal cloud relay.
+          Phone automatically retries cloud if local Wi-Fi or private VPN is unavailable.
+          
+          Windows includes the latest mainline editor and long-screenshot work.
+          Android includes the latest gallery layout and cloud QR pairing update.
+          The experimental cloud runs independently from LIFE OS PocketBase.
+          Test with a small screenshot first (relay limit: 12 MB).
+          
+          Relay URL is built into Windows: https://217-114-0-201.sslip.io:8443
+          Source commit for both apps: a617c771003e52c4179eb284738ed66897296c1c
+          
+          Automated unit tests and signed Android / Windows installer builds passed.
+          The transfer on a physical phone is not yet independently verified.
+          EOF
+          gh release create cloud-auto-preview-2026-10-21 KADR-Windows-Auto-Cloud-Setup.exe KADR-Companion-Auto-Cloud-1.0.20.apk Windows.sha256 Android.sha256 --repo "$GITHUB_REPOSITORY" --title 'KADR Automatic Cloud — Windows + Android 1.0.20' --notes-file release-notes.md --prerelease
+      - name: Verify exact downloads published
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view cloud-auto-preview-2026-10-21 --repo "$GITHUB_REPOSITORY" --json assets > /tmp/cloud-auto-assets.json
+          node -e "let a=require('/tmp/cloud-auto-assets.json').assets;let names=['KADR-Windows-Auto-Cloud-Setup.exe','KADR-Companion-Auto-Cloud-1.0.20.apk'];for(let n of names)if(!a.some(x=>x.name===n&&x.size>1000000))process.exit(1)"
+          echo 'KADR_BOTH_AUTO_CLOUD_PREVIEW_READY'
