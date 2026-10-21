@@ -1,0 +1,165 @@
+name: Build KADR unified Windows and Android 1.0.25
+on:
+  push:
+    paths: ['.github/workflows/build-kadr-unified-1_0_25-20261021.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-unified-20261021-125
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    env:
+      SOURCE_SHA: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify revision
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Source mismatch' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Dart source analysis
+        working-directory: source
+        shell: pwsh
+        run: |
+          dart analyze --no-fatal-infos --no-fatal-warnings lib/features/history/history_window.dart lib/features/tray/tray_menu.dart lib/components/history_file_drag_region.dart lib/components/thumbnail.dart lib/features/editor/editor_screen.dart lib/history_host_app.dart lib/state/app_state.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Dart analysis failed' }
+      - name: History and tray regression tests
+        working-directory: source
+        run: flutter test test/history_persistence_test.dart test/history_host_sync_test.dart test/tray_surface_mount_contract_test.dart test/tray_recovery_after_capture_test.dart
+      - name: Build Windows with personal cloud integrated
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
+      - name: Build Inno Setup installer
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'InnoSetup setup failed' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Windows setup failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Windows-Unified
+          path: source/build/installer/KADR-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      SOURCE_SHA: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - run: test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Test Android + compile
+        working-directory: source/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - name: Prepare existing Android signing key
+        shell: bash
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+      - name: Sign release APK
+        working-directory: source/mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/apk/release/app-release.apk >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Android-Unified
+          path: source/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [windows, android]
+    if: ${{ needs.windows.result == 'success' && needs.android.result == 'success' }}
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: KADR-Windows-Unified, path: windows}
+      - uses: actions/download-artifact@v4
+        with: {name: KADR-Android-Unified, path: android}
+      - name: Publish paired self-configuring installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s windows/KADR-Setup.exe
+          test -s android/app-release.apk
+          cp windows/KADR-Setup.exe KADR-Windows-Unified-Setup.exe
+          cp android/app-release.apk KADR-Mobile-1.0.25.apk
+          sha256sum KADR-Windows-Unified-Setup.exe KADR-Mobile-1.0.25.apk > SHA256SUMS.txt
+          cat > notes.md <<'EOF'
+          # KADR unified preview — Windows + Android 1.0.25
+          
+          No manual relay setup. Install both applications and pair via QR.
+          
+          Android: consistent 16dp screen gutters (except edge-to-edge photo grids),
+          short title underline, date-range calendar, 2/3 column switch
+          (3 by default), connection/app settings separated, removed age-only
+          cleanup, no automatic status-triggered full screen flicker, selected
+          file grid without opaque labels, native swipes left/right in preview,
+          pencil to offline image editor, delete basket icon.
+          
+          Windows: history localized RU/EN, native copy-only dragging from
+          history and tray, multi selection (Ctrl, right click, long press)
+          and select-all; reveal the exact file in Explorer; tray recovery while
+          Editor/History is open; editor tools below screenshot and properties
+          to the side; transparent native notification of phone screenshot.
+          
+          Source revision: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+          
+          Builds and automated tests passed. Actual device/window interactions
+          still need a physical end-to-end confirmation.
+          EOF
+          gh release create kadr-unified-preview-1.0.25 KADR-Windows-Unified-Setup.exe KADR-Mobile-1.0.25.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --title "KADR Unified Preview — Windows + Android 1.0.25" --notes-file notes.md --prerelease
+          gh release view kadr-unified-preview-1.0.25 --repo "$GITHUB_REPOSITORY" --json assets > /tmp/assets.json
+          node -e "const a=require('/tmp/assets.json').assets;for(const n of ['KADR-Windows-Unified-Setup.exe','KADR-Mobile-1.0.25.apk'])if(!a.some(x=>x.name===n&&x.size>1000000))process.exit(1)"
+          echo KADR_UNIFIED_RELEASE_READY
