@@ -1,0 +1,36 @@
+{
+  "product": "KADR",
+  "schema_version": 1,
+  "current_version": "1.0.26",
+  "channel": "release-candidate",
+  "release_date": "2026-10-21",
+  "published_at": "2026-10-21T19:08:46Z",
+  "source_commit": "0ca33ba0c3c4c68dca5531cbaa3e1c791d26e2d7",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/39658103231",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-1.0.26-rc",
+  "windows": {
+    "version": "1.0.26",
+    "build": 26,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-1.0.26-rc/KADR-Setup-1.0.26.exe",
+    "filename": "KADR-Setup-1.0.26.exe",
+    "size_bytes": 12748466,
+    "sha256": "78e66abd0d9c591f9846582461e0760e24de985543f2aac6953193ffe2470d3c",
+    "version_location": "Settings > About and tray"
+  },
+  "android": {
+    "version": "1.0.26",
+    "build": 36,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-1.0.26-rc/KADR-Mobile-1.0.26.apk",
+    "filename": "KADR-Mobile-1.0.26.apk",
+    "size_bytes": 52014929,
+    "sha256": "2e352f95b94d88d723bce10a913073e30ffa9d5f3b40164fae8247033a4534c3",
+    "version_location": "Settings > bottom"
+  },
+  "validation": {
+    "windows_ci": "passed",
+    "android_ci": "passed",
+    "physical_drag_drop": "not-verified",
+    "phone_to_pc_delivery": "not-verified"
+  },
+  "notes": "Versioned files are immutable. New versions must receive a new release tag and updated version.json; no silent replacements."
+}
