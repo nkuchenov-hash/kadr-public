@@ -1,0 +1,86 @@
+name: Release KADR Windows native history drag hotfix
+on:
+  push:
+    paths: ['.github/workflows/build-kadr-native-drag-hotfix-20261021.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-native-drag-hotfix-20261021
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 65
+    env:
+      SOURCE_SHA: 2b0de40c721ef9490c76d7bac5bef23dec796d75
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 2b0de40c721ef9490c76d7bac5bef23dec796d75
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify exact revision
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong SHA' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Check drag source and history compile
+        working-directory: source
+        shell: pwsh
+        run: |
+          dart analyze --no-fatal-warnings lib/components/history_file_drag_region.dart lib/components/thumbnail.dart lib/features/history/history_window.dart lib/features/tray/tray_menu.dart lib/state/app_state.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Dart compilation failed' }
+      - name: Run native history drag and tray regression tests
+        working-directory: source
+        run: flutter test test/native_history_drag_contract_test.dart test/tray_surface_mount_contract_test.dart test/tray_recovery_after_capture_test.dart test/history_host_sync_test.dart
+      - name: Compile Windows and both native Flutter host plugins
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows C++ build failed' }
+      - name: Package Windows setup
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup missing' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer missing' }
+      - name: Publish verified native-drag test installer
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Windows-Native-Drag-Hotfix.exe
+          $hash = (Get-FileHash KADR-Windows-Native-Drag-Hotfix.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Windows-Native-Drag-Hotfix.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          @'
+          KADR Windows — native drag-and-drop regression hotfix
+          
+          Restores the native super_native_extensions + irondash engine
+          context plugins for BOTH dedicated tray and History Flutter engines.
+          Windows Explorer drag-out of on-disk screenshots is copy-only.
+          Single-file and multi-file selected drag paths are present.
+          History localized to Russian, reveal selected screenshot in Explorer.
+          The user still needs to verify an actual mouse drag into Explorer;
+          CI cannot simulate it end-to-end.
+          No manual relay config; the personal cloud endpoint is compiled in.
+          Exact KADR source revision: 2b0de40c721ef9490c76d7bac5bef23dec796d75
+          '@ | Set-Content -Encoding utf8 release-notes.md
+          gh release create kadr-windows-native-drag-hotfix-20261021 KADR-Windows-Native-Drag-Hotfix.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows — Native Drag Hotfix' --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release failed' }
+      - name: Verify published Windows binary
+        shell: pwsh
+        run: |
+          $rel = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/kadr-windows-native-drag-hotfix-20261021" | ConvertFrom-Json
+          $asset = $rel.assets | Where-Object { $_.name -eq 'KADR-Windows-Native-Drag-Hotfix.exe' }
+          if (-not $asset -or $asset.size -lt 1000000) { throw 'Published installer missing or empty' }
+          Write-Output "KADR_WINDOWS_NATIVE_DRAG_PREVIEW_READY $($asset.size)"
