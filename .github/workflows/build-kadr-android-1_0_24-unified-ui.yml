@@ -1,0 +1,99 @@
+name: Verify and publish KADR Android 1.0.24 UX fixes
+on:
+  push:
+    paths: ['.github/workflows/build-kadr-android-1_0_24-unified-ui.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-android-1-0-24-fixes
+  cancel-in-progress: false
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      KADR_SHA: 27966d3566e1fa42e954468fe6443dc4eaf47a9b
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact private KADR source revision
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 27966d3566e1fa42e954468fe6443dc4eaf47a9b
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Validate source revision
+        run: test "$(git -C source rev-parse HEAD)" = "$KADR_SHA"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Android regression and no-flicker tests, Java compilation
+        working-directory: source/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - name: Restore signing key
+        shell: bash
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+      - name: Build signed Android APK
+        working-directory: source/mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/apk/release/app-release.apk >/dev/null
+      - name: Publish dedicated verified Android update
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp source/mobile/android/app/build/outputs/apk/release/app-release.apk KADR-Mobile-1.0.24-UX-Fixes.apk
+          sha256sum KADR-Mobile-1.0.24-UX-Fixes.apk > KADR-Mobile-1.0.24.sha256
+          cat > /tmp/release-notes.md <<'EOF'
+          # KADR Companion 1.0.24 — connectivity and gallery improvements
+
+          - Diagnostics no longer force the app to navigate away.
+          - Pairing does not masquerade as a proven live transfer connection.
+          - Full-width reconnect and disconnect buttons.
+          - Full screenshot library indexing, default 3 columns with 2/3 switch; shared 16dp inset outside thumbnails.
+          - Calendar picker for date range; photo gallery and left/right preview swipes.
+          - On-device OCR and new native annotation editor, photo metadata analysis.
+          - No age-based cleanup bucket; consistent headers and cleanup grid; Android background screen flicker fix.
+          - No duplicate in-app delete warning; Android's legally required MediaStore confirmation is preserved.
+          - Direct cloud pairing fallback retained.
+          - Fixed explicit upload failing before cloud fallback on mobile data.
+          - Previous KADR Windows automatic cloud preview remains compatible.
+
+          Source commit: 27966d3566e1fa42e954468fe6443dc4eaf47a9b.
+          Automated Android tests and signed release build verified in this run.
+          Physical phone transfer and photo OCR accuracy require validation on actual devices.
+          EOF
+          gh release create kadr-mobile-1.0.24-final KADR-Mobile-1.0.24-UX-Fixes.apk KADR-Mobile-1.0.24.sha256 --repo "$GITHUB_REPOSITORY" --title "KADR Mobile 1.0.24 - Gallery and Connectivity Fixes" --notes-file /tmp/release-notes.md --prerelease
+      - name: Verify APK release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view kadr-mobile-1.0.24-final --repo "$GITHUB_REPOSITORY" --json assets > /tmp/kadr-apk.json
+          node -e "if(!require('/tmp/kadr-apk.json').assets.some(a=>a.name==='KADR-Mobile-1.0.24-UX-Fixes.apk' && a.size>1000000))process.exit(1)"
+          echo KADR_1_0_24_PUBLISHED
