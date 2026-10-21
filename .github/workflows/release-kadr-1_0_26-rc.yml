@@ -1,0 +1,185 @@
+name: Release KADR 1.0.26 RC Windows and Android
+on:
+  push:
+    paths: ['.github/workflows/release-kadr-1_0_26-rc.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-1-0-26-release-candidate
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 65
+    env:
+      SOURCE_SHA: 0ca33ba0c3c4c68dca5531cbaa3e1c791d26e2d7
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 0ca33ba0c3c4c68dca5531cbaa3e1c791d26e2d7
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify source and version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Source revision mismatch' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.26\+26')) { throw 'Flutter version incorrect' }
+          if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.26'")) { throw 'Visible version incorrect' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Dart analyzer
+        working-directory: source
+        shell: pwsh
+        run: |
+          dart analyze --no-fatal-warnings lib/core/constants/kadr_build_info.dart lib/features/settings/settings_window.dart lib/features/tray/tray_menu.dart lib/components/history_file_drag_region.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Analysis failure' }
+      - name: Native drag, history and tray regression tests
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/native_history_drag_contract_test.dart test/history_host_sync_test.dart test/tray_surface_mount_contract_test.dart test/tray_recovery_after_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'History/tray regression tests failed' }
+      - name: Compile versioned Windows release with embedded cloud
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL" "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compile failed' }
+          $exe = "build/windows/x64/runner/Release/KADR.exe"
+          if (-not (Test-Path $exe)) { $exe = "build/windows/x64/runner/Release/kadr.exe" }
+          if (-not (Test-Path $exe)) { throw 'KADR.exe not found' }
+          $ver = (Get-Item $exe).VersionInfo.ProductVersion
+          Write-Output "Windows executable ProductVersion=$ver"
+          if (-not $ver.StartsWith('1.0.26')) { throw "Executable has incorrect version: $ver" }
+      - name: Package versioned Windows installer
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup install failed' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer packaging failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Windows-1.0.26-RC
+          path: source/build/installer/KADR-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      SOURCE_SHA: 0ca33ba0c3c4c68dca5531cbaa3e1c791d26e2d7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 0ca33ba0c3c4c68dca5531cbaa3e1c791d26e2d7
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify exact Android release version
+        run: |
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
+          grep -q "versionCode 36" source/mobile/android/app/build.gradle
+          grep -q "versionName '1.0.26'" source/mobile/android/app/build.gradle
+          test "$(cat source/mobile/android/RELEASE_VERSION)" = "1.0.26"
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Android regression tests and debug compile
+        working-directory: source/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - name: Restore existing Android release signing key
+        shell: bash
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+      - name: Build and verify signed versioned APK
+        working-directory: source/mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/apk/release/app-release.apk >/dev/null
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release.apk | grep "versionName='1.0.26'"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Android-1.0.26-RC
+          path: source/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [windows, android]
+    if: ${{ needs.windows.result == 'success' && needs.android.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: KADR-Windows-1.0.26-RC, path: windows}
+      - uses: actions/download-artifact@v4
+        with: {name: KADR-Android-1.0.26-RC, path: android}
+      - name: Publish immutable versioned release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s windows/KADR-Setup.exe
+          test -s android/app-release.apk
+          cp windows/KADR-Setup.exe KADR-Setup-1.0.26.exe
+          cp android/app-release.apk KADR-Mobile-1.0.26.apk
+          sha256sum KADR-Setup-1.0.26.exe KADR-Mobile-1.0.26.apk > SHA256SUMS.txt
+          cat > notes.md <<'EOF'
+          EN
+
+          # KADR 1.0.26 — Windows and Android release candidate
+
+          Both installers use the same source revision and show the actual version in the app. On Windows the version is in Settings > About, the settings sidebar, and the tray. Android shows version 1.0.26 and build 36 in Settings.
+
+          Android includes full gallery indexing, optional 2/3-column grid, a date-range calendar, preview navigation/editor, quieter diagnostics and on-device photo analysis. Windows includes the native drag registration correction in tray/history engines, editor enhancements and the personal cloud connection without manual setup.
+
+          All automated tests, Windows compilation and installation packaging, Android APK signing and both packaged version checks have passed. Mouse-to-Explorer dragging, tray responsiveness and phone-to-PC transfer on physical devices are still unverified, so this is a release candidate, not a final stable release.
+
+          Source SHA: 0ca33ba0c3c4c68dca5531cbaa3e1c791d26e2d7.
+
+          RU
+
+          # КАДР 1.0.26 — кандидат в релиз для Windows и Android
+
+          Обе сборки подготовлены из одной ревизии исходного кода. В Windows номер 1.0.26 отображается в настройках, разделе «О приложении» и трее. На Android — в настройках вместе с номером сборки 36.
+
+          Android: полная индексация галереи, переключатель сетки 2/3, календарь с выбором периода, листание и редактор в просмотре, ненавязчивая диагностика и анализ фотографий на устройстве. Windows: восстановление регистрации нативного перетаскивания в истории и трее, улучшения редактора и встроенное облачное подключение.
+
+          Автоматические тесты, компиляция Windows, сборка установщика, подпись Android и проверка номеров версий прошли успешно. Физическое перетаскивание в Проводник, отзывчивость меню трея и передача между устройствами ещё требуют проверки. Поэтому это кандидат в релиз, не подтверждённая окончательная стабильная версия.
+
+          Исходный commit: 0ca33ba0c3c4c68dca5531cbaa3e1c791d26e2d7.
+          EOF
+          gh release create kadr-1.0.26-rc KADR-Setup-1.0.26.exe KADR-Mobile-1.0.26.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --title "KADR 1.0.26 — Windows + Android release candidate" --notes-file notes.md --prerelease
+          gh release view kadr-1.0.26-rc --repo "$GITHUB_REPOSITORY" --json assets > assets.json
+          node -e "const a=require('./assets.json').assets;for(const n of ['KADR-Setup-1.0.26.exe','KADR-Mobile-1.0.26.apk'])if(!a.some(x=>x.name===n&&x.size>1000000))process.exit(1)"
+          echo KADR_1_0_26_RC_PUBLISHED
