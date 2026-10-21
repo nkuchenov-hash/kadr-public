@@ -35,7 +35,7 @@ jobs:
         working-directory: source
         shell: pwsh
         run: |
-          dart analyze --no-fatal-infos --no-fatal-warnings lib/features/history/history_window.dart lib/features/tray/tray_menu.dart lib/components/history_file_drag_region.dart lib/components/thumbnail.dart lib/features/editor/editor_screen.dart lib/history_host_app.dart lib/state/app_state.dart
+          dart analyze --no-fatal-warnings lib/features/history/history_window.dart lib/features/tray/tray_menu.dart lib/components/history_file_drag_region.dart lib/components/thumbnail.dart lib/features/editor/editor_screen.dart lib/history_host_app.dart lib/state/app_state.dart
           if ($LASTEXITCODE -ne 0) { throw 'Dart analysis failed' }
       - name: History and tray regression tests
         working-directory: source
