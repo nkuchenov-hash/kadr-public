@@ -1,0 +1,86 @@
+name: Publish verified automatic scrolling Windows installer
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-auto-scrolling-20261021.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: kadr-windows-auto-scroll-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_RUN_ID: '39579044063'
+      EXPECTED_VERIFY_HEAD: '28127a51dfa7dddd1811566e1be111bbc63e0830'
+      BUILD_SOURCE_SHA: 'd7720cc961419e5e3e60aad73f70ad2f2b33588a'
+      MERGED_MAIN_SHA: '769caea771d2582f475440722c35b965319d2040'
+    steps:
+      - name: Verify completed Windows build and exact tested candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run view "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion,headSha > /tmp/kadr-verify-run.json
+          node -e "const r=require('/tmp/kadr-verify-run.json'); if(r.conclusion !== 'success' || r.headSha !== process.env.EXPECTED_VERIFY_HEAD) process.exit(1)"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN_ID/jobs?per_page=10" > /tmp/kadr-verify-jobs.json
+          node -e "const r=require('/tmp/kadr-verify-jobs.json'); if(!r.jobs.some(j=>j.conclusion==='success' && j.steps.some(s=>s.name==='Compile Windows release'&&s.conclusion==='success') && j.steps.some(s=>s.name==='Build installer (not published yet)'&&s.conclusion==='success'))) process.exit(1)"
+      - name: Retrieve Windows installer from successful verification run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p candidate release
+          gh run download "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name kadr-auto-scroll-candidate --dir candidate
+          installer=$(find candidate -type f -name 'KADR-Setup.exe' -print -quit)
+          test -n "$installer" && test -s "$installer"
+          cp "$installer" release/KADR-Setup.exe
+          test "$(stat -c%s release/KADR-Setup.exe)" -gt 10000000
+          ( cd release && sha256sum KADR-Setup.exe > KADR-Setup.sha256 )
+      - name: Publish the already-verified installer and bilingual notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release/release-notes.md <<EOF
+          EN
+
+          # Long chats now capture automatically while you scroll
+
+          Alt+Shift+S selects a chat area. A red border stays visible while you scroll inside it. KADR automatically captures overlapping frames, showing progress in the same light/dark style as ordinary screenshot controls. No repeated Add clicks are needed.
+
+          Pause, Finish and Cancel are located under the selection. Finish saves a single tall PNG and indexes it in History. The final panel shows the actual saved path and buttons to Open file, Folder or Close. Fast scroll gaps are flagged rather than silently combined.
+
+          Windows build and automated tests completed successfully. Physical GUI acceptance on your own Windows/Telemost setup is still required.
+
+          Build source commit: $BUILD_SOURCE_SHA
+          Merged application commit: $MERGED_MAIN_SHA
+
+          RU
+
+          # Теперь длинный чат снимается автоматически при прокрутке
+
+          После Alt+Shift+S остаётся красная рамка, внутри которой можно прокручивать чат. КАДР самостоятельно захватывает новые участки, показывает прогресс и оформляет панель в том же светлом или тёмном стиле, что и обычный скриншот. Нажимать «Добавить» после каждой прокрутки больше не нужно.
+
+          Кнопки «Пауза», «Готово», «Отмена» располагаются под выделенной областью. «Готово» сохраняет один длинный PNG в историю. В конце виден фактический путь и кнопки «Открыть», «Папка», «Закрыть». При слишком быстрой прокрутке программа предупреждает о пропуске.
+
+          Windows-сборка и автоматические тесты завершились успешно. Работу интерфейса на конкретном компьютере с Телемостом ещё необходимо проверить.
+
+          Исходный commit сборки: $BUILD_SOURCE_SHA
+          Commit приложения: $MERGED_MAIN_SHA
+          EOF
+          gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title 'KADR Windows — automatic long screenshots' --notes-file release/release-notes.md --latest
+          gh release upload windows-latest release/KADR-Setup.exe release/KADR-Setup.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+      - name: Verify published file and source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view windows-latest --repo "$GITHUB_REPOSITORY" --json body,assets > /tmp/kadr-release.json
+          node -e "const r=require('/tmp/kadr-release.json');const file=r.assets.find(a=>a.name==='KADR-Setup.exe');if(!r.body.includes(process.env.BUILD_SOURCE_SHA)||!r.body.includes(process.env.MERGED_MAIN_SHA)||!file||file.size<10000000)process.exit(1)"
+          echo "KADR Windows installer published from verified candidate"
