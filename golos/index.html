@@ -51,8 +51,8 @@ footer a{color:var(--accent)}
 <h1><span data-ru="Говори." data-en="Speak.">Говори.</span><br><span style="color:var(--fg)" data-ru="Текст готов." data-en="Text appears.">Текст готов.</span></h1>
 <p class="desc" data-ru="Диктовка прямо в любое приложение. Локальные модели, горячая клавиша и мгновенная вставка текста — главные цели GOLOS." data-en="Voice typing straight into your apps. Local speech models, a keyboard shortcut, and fast text insertion — the core goals of GOLOS.">Диктовка прямо в любое приложение. Локальные модели, горячая клавиша и мгновенная вставка текста — главные цели GOLOS.</p>
 <div class="actions">
-<a class="download" id="download" href="https://github.com/nkuchenov-hash/kadr-public/releases/download/golos-pr8-preview/GOLOS_PR-8_835a79f4_x64-setup.exe"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m-5-5 5 5 5-5M4 17v3h16v-3"/></svg><span data-ru="Скачать для Windows" data-en="Download for Windows">Скачать для Windows</span></a>
-<div class="meta"><strong>Windows 10/11 · x64</strong><span id="version">GOLOS · Test preview</span></div>
+<a class="download" id="download" href="../downloads/GOLOS-Setup.exe" download="GOLOS-Setup.exe"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m-5-5 5 5 5-5M4 17v3h16v-3"/></svg><span data-ru="Скачать для Windows" data-en="Download for Windows">Скачать для Windows</span></a>
+<div class="meta"><strong>Windows 10/11 · x64</strong><span id="version">GOLOS · Preview</span></div>
 </div>
 <p class="status" id="status" role="status" aria-live="polite"></p>
 <section class="details">
@@ -61,7 +61,7 @@ footer a{color:var(--accent)}
 <article><h2 data-ru="Тестовая сборка" data-en="Preview build">Тестовая сборка</h2><p data-ru="Это предварительная версия. Установщик обновляет уже установленный GOLOS." data-en="This is a preview build. The installer updates your existing GOLOS.">Это предварительная версия. Установщик обновляет уже установленный GOLOS.</p></article>
 </section>
 </main>
-<footer><span data-ru="GOLOS · Публичные тестовые сборки" data-en="GOLOS · Public preview builds">GOLOS · Публичные тестовые сборки</span> · <a href="https://github.com/nkuchenov-hash/kadr-public/releases/tag/golos-pr8-preview" data-ru="Все файлы релиза" data-en="Release assets">Все файлы релиза</a></footer>
+<footer><span data-ru="GOLOS · Публичные тестовые сборки" data-en="GOLOS · Public preview builds">GOLOS · Публичные тестовые сборки</span> · <a href="../downloads/GOLOS-Setup.sha256" data-ru="SHA-256 установщика" data-en="Installer SHA-256">SHA-256 установщика</a></footer>
 </div>
 <script>
 (()=>{'use strict';
@@ -70,17 +70,20 @@ let lang='ru';
 function updateLanguage(l){lang=l;document.documentElement.lang=l;texts.forEach(el=>el.textContent=el.dataset[l]);document.querySelector('#ru').classList.toggle('active',l==='ru');document.querySelector('#en').classList.toggle('active',l==='en');document.title=l==='ru'?'GOLOS — Скачать для Windows':'GOLOS — Download for Windows';}
 document.querySelector('#ru').addEventListener('click',()=>updateLanguage('ru'));
 document.querySelector('#en').addEventListener('click',()=>updateLanguage('en'));
-const repo='https://api.github.com/repos/nkuchenov-hash/kadr-public/releases/tags/golos-pr8-preview';
-const status=document.querySelector('#status'),download=document.querySelector('#download'),version=document.querySelector('#version');
-fetch(repo,{headers:{Accept:'application/vnd.github+json'},cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release HTTP '+r.status);return r.json()}).then(release=>{
- const assets=(release.assets||[]).filter(a=>/^GOLOS_PR-\d+_[a-f0-9]{8}_x64-setup\.exe$/i.test(a.name)&&a.state==='uploaded');
- assets.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
- if(!assets.length)throw new Error('No installer available');
- const newest=assets[0]; download.href=newest.browser_download_url;
- const revision=newest.name.match(/PR-\d+_([a-f0-9]{8})/i)?.[1]||'preview';
- version.textContent='Preview · '+revision+' · '+(newest.size/1e6).toFixed(1)+' MB';
- status.textContent='';
-}).catch(()=>{status.textContent=lang==='ru'?'Не удалось проверить обновления. Кнопка ведёт к последней резервной сборке.':'Could not check for updates. The button links to the backup preview build.';});
+const status=document.querySelector('#status'),version=document.querySelector('#version');
+const manifestUrl='./release.json';
+fetch(manifestUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release metadata HTTP '+r.status);return r.json()}).then(release=>{
+ const revision=typeof release.revision==='string'&&/^[a-f0-9]{8}$/i.test(release.revision)?release.revision:'preview';
+ const size=Number(release.sizeBytes);
+ version.textContent='Preview · '+revision+(Number.isFinite(size)&&size>0?' · '+(size/1e6).toFixed(1)+' MB':'');
+ if(revision==='a4805309'){
+   status.textContent=lang==='ru'?'Опубликована тестовая сборка от 19 октября. Исправления RU/EN и длинной диктовки пока не включены.':'Preview from October 19. RU/EN and long dictation fixes are not yet included.';
+ }else{
+   status.textContent='';
+ }
+}).catch(()=>{
+ status.textContent=lang==='ru'?'Не удалось проверить номер версии. Ссылка на установщик остаётся доступной.':'Could not check the version number. Installer download remains available.';
+});
 })();
 </script>
 </body>
