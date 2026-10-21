@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 55bc0eaaeef8b1d383c2086872f639a4b6fbe7cb
+          ref: 9c8c9ac19a6f9097a5e04c8e186b8d1ddf3168e5
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: source
           persist-credentials: false
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 55bc0eaaeef8b1d383c2086872f639a4b6fbe7cb
+          ref: 9c8c9ac19a6f9097a5e04c8e186b8d1ddf3168e5
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: source
           persist-credentials: false
