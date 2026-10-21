@@ -135,7 +135,7 @@ jobs:
           test -s android/app-release.apk
           cp windows/KADR-Setup.exe KADR-Windows-Native-Drag-Setup.exe
           cp android/app-release.apk KADR-Mobile-1.0.25.apk
-          sha256sum KADR-Windows-Unified-Setup.exe KADR-Mobile-1.0.25.apk > SHA256SUMS.txt
+          sha256sum KADR-Windows-Native-Drag-Setup.exe KADR-Mobile-1.0.25.apk > SHA256SUMS.txt
           cat > notes.md <<'EOF'
           # KADR unified preview — Windows + Android 1.0.25
           
@@ -161,7 +161,7 @@ jobs:
           Builds and automated tests passed. Actual device/window interactions
           still need a physical end-to-end confirmation.
           EOF
-          gh release create kadr-unified-preview-1.0.25-native-drag KADR-Windows-Unified-Setup.exe KADR-Mobile-1.0.25.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --title "KADR Unified Preview — Windows + Android 1.0.25" --notes-file notes.md --prerelease
-          gh release view kadr-unified-preview-1.0.25 --repo "$GITHUB_REPOSITORY" --json assets > /tmp/assets.json
-          node -e "const a=require('/tmp/assets.json').assets;for(const n of ['KADR-Windows-Unified-Setup.exe','KADR-Mobile-1.0.25.apk'])if(!a.some(x=>x.name===n&&x.size>1000000))process.exit(1)"
+          gh release create kadr-unified-preview-1.0.25-native-drag KADR-Windows-Native-Drag-Setup.exe KADR-Mobile-1.0.25.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --title "KADR Unified Preview — Windows + Android 1.0.25" --notes-file notes.md --prerelease
+          gh release view kadr-unified-preview-1.0.25-native-drag --repo "$GITHUB_REPOSITORY" --json assets > /tmp/assets.json
+          node -e "const a=require('/tmp/assets.json').assets;for(const n of ['KADR-Windows-Native-Drag-Setup.exe','KADR-Mobile-1.0.25.apk'])if(!a.some(x=>x.name===n&&x.size>1000000))process.exit(1)"
           echo KADR_UNIFIED_RELEASE_READY
