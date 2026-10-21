@@ -73,11 +73,11 @@ document.querySelector('#en').addEventListener('click',()=>updateLanguage('en'))
 const repo='https://api.github.com/repos/nkuchenov-hash/kadr-public/releases/tags/golos-pr8-preview';
 const status=document.querySelector('#status'),download=document.querySelector('#download'),version=document.querySelector('#version');
 fetch(repo,{headers:{Accept:'application/vnd.github+json'},cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release HTTP '+r.status);return r.json()}).then(release=>{
- const assets=(release.assets||[]).filter(a=>/^GOLOS_PR-8_[a-f0-9]{8}_x64-setup\.exe$/i.test(a.name)&&a.state==='uploaded');
+ const assets=(release.assets||[]).filter(a=>/^GOLOS_PR-\d+_[a-f0-9]{8}_x64-setup\.exe$/i.test(a.name)&&a.state==='uploaded');
  assets.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
  if(!assets.length)throw new Error('No installer available');
  const newest=assets[0]; download.href=newest.browser_download_url;
- const revision=newest.name.match(/PR-8_([a-f0-9]{8})/i)?.[1]||'preview';
+ const revision=newest.name.match(/PR-\d+_([a-f0-9]{8})/i)?.[1]||'preview';
  version.textContent='Preview · '+revision+' · '+(newest.size/1e6).toFixed(1)+' MB';
  status.textContent='';
 }).catch(()=>{status.textContent=lang==='ru'?'Не удалось проверить обновления. Кнопка ведёт к последней резервной сборке.':'Could not check for updates. The button links to the backup preview build.';});
