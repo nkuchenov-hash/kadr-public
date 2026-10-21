@@ -1,7 +1,7 @@
 name: Verify and publish KADR Android 1.0.23 UX fixes
 on:
   push:
-    paths: ['.github/workflows/build-kadr-android-1_0_23-fixes.yml']
+    paths: ['.github/workflows/build-kadr-android-1_0_23-ui-flicker.yml']
   workflow_dispatch:
 permissions:
   contents: write
