@@ -13,13 +13,13 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: c9d865359f0ef594645fb87af82b158e457de69c
+      SOURCE_SHA: 772b4d471ce11cbf1916f7ee4f873df2d05b3721
       KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
     steps:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: c9d865359f0ef594645fb87af82b158e457de69c
+          ref: 772b4d471ce11cbf1916f7ee4f873df2d05b3721
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
@@ -65,12 +65,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 55
     env:
-      SOURCE_SHA: c9d865359f0ef594645fb87af82b158e457de69c
+      SOURCE_SHA: 772b4d471ce11cbf1916f7ee4f873df2d05b3721
     steps:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: c9d865359f0ef594645fb87af82b158e457de69c
+          ref: 772b4d471ce11cbf1916f7ee4f873df2d05b3721
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
@@ -156,7 +156,7 @@ jobs:
           Editor/History is open; editor tools below screenshot and properties
           to the side; transparent native notification of phone screenshot.
           
-          Source revision: c9d865359f0ef594645fb87af82b158e457de69c
+          Source revision: 772b4d471ce11cbf1916f7ee4f873df2d05b3721
           
           Builds and automated tests passed. Actual device/window interactions
           still need a physical end-to-end confirmation.
