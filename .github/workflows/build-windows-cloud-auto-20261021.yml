@@ -1,0 +1,89 @@
+name: Build KADR Windows automatic personal cloud preview
+on:
+  push:
+    paths:
+      - '.github/workflows/build-windows-cloud-auto-20261021.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kadr-windows-auto-cloud-preview
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 55
+    env:
+      SOURCE_SHA: b357feb183fbb15d19cdb7dfe9b5d743d99e062b
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact private KADR preview source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: b357feb183fbb15d19cdb7dfe9b5d743d99e062b
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+      - name: Verify revision
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw "Unexpected source revision" }
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Test QR, relay and receiver
+        working-directory: source
+        run: flutter test test/mobile_relay_qr_persistence_test.dart test/mobile_screenshot_receiver_test.dart test/relay_autostart_hygiene_test.dart
+      - name: Build Windows with automatic cloud
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL"
+          if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
+          if (-not (Test-Path "build/windows/x64/runner/Release/KADR.exe")) { throw "Windows executable missing" }
+      - name: Package Windows installer
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup install failed" }
+          New-Item -ItemType Directory -Force -Path build/installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
+          if (-not (Test-Path "build/installer/KADR-Setup.exe")) { throw "Installer missing" }
+      - name: Publish separately tagged automatic-cloud preview
+        shell: pwsh
+        run: |
+          Copy-Item "source/build/installer/KADR-Setup.exe" "KADR-Windows-Cloud-Auto-Preview.exe"
+          $hash = (Get-FileHash "KADR-Windows-Cloud-Auto-Preview.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Windows-Cloud-Auto-Preview.exe" | Set-Content -Encoding ascii "KADR-Windows-Cloud-Auto-Preview.sha256"
+          @'
+          # KADR Windows — Automatic Personal Cloud Preview
+
+          Install normally. No scripts, no IP addresses, no manual cloud URL configuration.
+
+          Cloud URL is embedded at build time: https://217-114-0-201.sslip.io:8443
+          Open Settings > Mobile devices and scan the pairing QR in Android Companion 1.0.19 Preview.
+          Local Wi-Fi / VPN direct transfer remains preferred. Internet relay is the fallback.
+          This is an experimental personal build and does not replace the stable public installer.
+          Source commit: b357feb183fbb15d19cdb7dfe9b5d743d99e062b
+          Note: Physical Android-to-Windows screenshot upload is not yet verified.
+          '@ | Set-Content -Encoding utf8 "release-notes.md"
+          gh release create cloud-windows-auto-2026-10-21 "KADR-Windows-Cloud-Auto-Preview.exe" "KADR-Windows-Cloud-Auto-Preview.sha256" --repo $env:GITHUB_REPOSITORY --title "KADR Windows - Automatic Cloud Preview" --notes-file "release-notes.md" --prerelease
+          if ($LASTEXITCODE -ne 0) { throw "Preview release publishing failed" }
+      - name: Verify release asset
+        shell: pwsh
+        run: |
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/cloud-windows-auto-2026-10-21" | ConvertFrom-Json
+          $asset = $release.assets | Where-Object { $_.name -eq 'KADR-Windows-Cloud-Auto-Preview.exe' }
+          if (-not $asset -or $asset.size -lt 1000000) { throw "Release installer missing or empty" }
+          Write-Output "WINDOWS_AUTO_CLOUD_READY size=$($asset.size)"
