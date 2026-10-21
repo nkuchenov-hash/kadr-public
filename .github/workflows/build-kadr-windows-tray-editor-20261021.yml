@@ -1,0 +1,71 @@
+name: Build KADR Windows tray and editor corrections
+on:
+  push:
+    paths: ['.github/workflows/build-kadr-windows-tray-editor-20261021.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-windows-tray-editor-20261021
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      SOURCE_SHA: 936b173fdb3f0ea684c1e7518db2a1715326a2c4
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 936b173fdb3f0ea684c1e7518db2a1715326a2c4
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify SHA
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Bad source SHA' }
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve Flutter packages
+        working-directory: source
+        run: flutter pub get
+      - name: Verify receiver and QR tests
+        working-directory: source
+        run: flutter test test/mobile_relay_qr_persistence_test.dart test/mobile_screenshot_receiver_test.dart test/tray_recovery_after_capture_test.dart
+      - name: Compile Windows app with cloud URL
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL"
+          if ($LASTEXITCODE -ne 0) { throw "Windows Flutter build failed" }
+      - name: Package setup
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup unavailable" }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw "Installer build failed" }
+      - name: Publish separate signed Windows preview setup
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Windows-Tray-Editor-Setup.exe
+          $hash = (Get-FileHash KADR-Windows-Tray-Editor-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Windows-Tray-Editor-Setup.exe" | Set-Content -Encoding ascii KADR-Windows-Tray-Editor.sha256
+          @'
+          KADR Windows — tray, editor and mobile receipt preview.
+          No scripts, no manual relay address. Install and pair Android via QR.
+          Waits for the KADR capture pipeline to save a screenshot before acknowledging
+          delivery through the personal cloud relay.
+          Compatible with KADR Android 1.0.23. Tray-open retry during/after screenshot and history; transparent editor toolbar outside image, side settings; native mini-notice on mobile screenshot receipt.
+          Private source revision: 936b173fdb3f0ea684c1e7518db2a1715326a2c4
+          '@ | Set-Content -Encoding utf8 release-notes.md
+          gh release create kadr-windows-tray-editor-20261021 KADR-Windows-Tray-Editor-Setup.exe KADR-Windows-Tray-Editor.sha256 --repo $env:GITHUB_REPOSITORY --title "KADR Windows - Tray, Editor and Mobile Notification Preview" --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw "Release publishing failed" }
