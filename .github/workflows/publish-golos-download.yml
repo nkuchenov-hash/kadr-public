@@ -1,0 +1,118 @@
+name: Publish GOLOS installer on website
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-golos-download.yml]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: public-golos-installer
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Pin verified GOLOS EXE to website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Resolve newest public GOLOS installer
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLIC_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.request
+          from datetime import datetime
+          repo = os.environ["PUBLIC_REPO"]
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/releases?per_page=100",
+              headers={"Accept": "application/vnd.github+json",
+                       "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                       "User-Agent": "GOLOS-public-distribution"}
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              releases = json.load(response)
+          choices = []
+          for release in releases:
+              for asset in release.get("assets", []):
+                  if (re.fullmatch(r"GOLOS_PR-\d+_[0-9a-f]{8}_x64-setup\.exe", asset["name"], re.I)
+                      and asset.get("state") == "uploaded"
+                      and asset.get("digest", "").startswith("sha256:")):
+                      choices.append((asset["created_at"], release, asset))
+          if not choices:
+              raise SystemExit("No public GOLOS installer with GitHub SHA256 digest found")
+          _, release, asset = max(choices, key=lambda x: x[0])
+          print(f"Selected {release['tag_name']}/{asset['name']} ({asset['size']} bytes)")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"tag={release['tag_name']}\n")
+              output.write(f"asset={asset['name']}\n")
+              output.write(f"sha256={asset['digest'].removeprefix('sha256:')}\n")
+              output.write(f"created={asset['created_at']}\n")
+          PY
+      - name: Download and verify binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.latest.outputs.tag }}
+          ASSET: ${{ steps.latest.outputs.asset }}
+          EXPECTED: ${{ steps.latest.outputs.sha256 }}
+        shell: bash
+        run: |
+          mkdir -p /tmp/golos-release downloads golos
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$ASSET" --dir /tmp/golos-release --clobber
+          printf '%s  %s\n' "$EXPECTED" "/tmp/golos-release/$ASSET" | sha256sum --check --status
+          python3 - <<'PY'
+          import os, pathlib
+          file = pathlib.Path("/tmp/golos-release") / os.environ["ASSET"]
+          if file.stat().st_size < 1_000_000 or file.open("rb").read(2) != b"MZ":
+              raise SystemExit("Unexpected Windows installer payload")
+          print("Verified PE installer:", file.stat().st_size, "bytes")
+          PY
+          cp "/tmp/golos-release/$ASSET" downloads/GOLOS-Setup.exe
+          printf '%s  GOLOS-Setup.exe\n' "$EXPECTED" > downloads/GOLOS-Setup.sha256
+      - name: Publish website release metadata
+        env:
+          ASSET: ${{ steps.latest.outputs.asset }}
+          TAG: ${{ steps.latest.outputs.tag }}
+          EXPECTED: ${{ steps.latest.outputs.sha256 }}
+          CREATED: ${{ steps.latest.outputs.created }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          version = re.search(r"PR-\d+_([0-9a-f]{8})", os.environ["ASSET"], re.I)
+          metadata = {
+            "name": os.environ["ASSET"],
+            "revision": version.group(1) if version else "preview",
+            "sha256": os.environ["EXPECTED"],
+            "sizeBytes": pathlib.Path("downloads/GOLOS-Setup.exe").stat().st_size,
+            "publishedAt": os.environ["CREATED"],
+            "channel": "preview",
+          }
+          pathlib.Path("golos/release.json").write_text(
+              json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8"
+          )
+          PY
+      - name: Commit checked installer to public website
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
+          if git diff --cached --quiet; then
+            echo "GOLOS installer already up to date"
+            exit 0
+          fi
+          git commit -m "Publish verified GOLOS Windows preview on site"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
