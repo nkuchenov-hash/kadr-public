@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 65
     env:
-      SOURCE_SHA: 2b0de40c721ef9490c76d7bac5bef23dec796d75
+      SOURCE_SHA: 4e2cc1d778d34cb309a0c75fd58ba047dc501a89
       KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 2b0de40c721ef9490c76d7bac5bef23dec796d75
+          ref: 4e2cc1d778d34cb309a0c75fd58ba047dc501a89
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
@@ -73,7 +73,7 @@ jobs:
           The user still needs to verify an actual mouse drag into Explorer;
           CI cannot simulate it end-to-end.
           No manual relay config; the personal cloud endpoint is compiled in.
-          Exact KADR source revision: 2b0de40c721ef9490c76d7bac5bef23dec796d75
+          Exact KADR source revision: 4e2cc1d778d34cb309a0c75fd58ba047dc501a89
           '@ | Set-Content -Encoding utf8 release-notes.md
           gh release create kadr-windows-native-drag-hotfix-20261021 KADR-Windows-Native-Drag-Hotfix.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows — Native Drag Hotfix' --notes-file release-notes.md --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Release failed' }
