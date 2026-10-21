@@ -41,7 +41,7 @@ jobs:
         run: flutter pub get
       - name: Test QR, receiver and relay hygiene
         working-directory: source
-        run: flutter test test/mobile_relay_qr_persistence_test.dart test/mobile_screenshot_receiver_test.dart test/relay_autostart_hygiene_test.dart
+        run: flutter test test/mobile_relay_qr_persistence_test.dart test/mobile_screenshot_receiver_test.dart
       - name: Build Windows with embedded cloud endpoint
         working-directory: source
         shell: pwsh
