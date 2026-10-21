@@ -1,0 +1,60 @@
+name: Verify automatic scrolling capture Windows build
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-auto-scrolling-windows-20261021.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - name: Checkout KADR candidate
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 05de130d5789607c88f780cfe10938b4467d0f79
+          path: source
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Analyze, test automatic scrolling and existing screenshot mode
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/manual_scroll_capture_test.dart test/video_hotkey_contract_test.dart test/p0_native_region_capture_test.dart test/p0_region_handoff_latency_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile Windows release
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build installer (not published yet)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          New-Item -ItemType Directory -Force -Path source\build\installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" source\installer\kadr.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'source\build\installer\KADR-Setup.exe')) { throw 'Missing installer' }
+      - name: Archive candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: kadr-auto-scroll-candidate
+          path: source/build/installer/KADR-Setup.exe
+          retention-days: 2
+          if-no-files-found: error
