@@ -20,10 +20,10 @@ jobs:
     timeout-minutes: 12
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_RUN_ID: '39584613334'
-      EXPECTED_VERIFY_HEAD: 'd1e5f186c2138cff7f2b76f2b8c741de20afebd3'
-      BUILD_SOURCE_SHA: 'b860b9f00817cda8e83b35bbe49785ef66e29fea'
-      MERGED_MAIN_SHA: 'bcafef22ca104dafc09b6d2c08e9a178e3cd5cb3'
+      VERIFIED_RUN_ID: '39592010132'
+      EXPECTED_VERIFY_HEAD: '0506d9cce64219baa0e4b8e6832955746f6bae0d'
+      BUILD_SOURCE_SHA: '83f317df08d9b9b687d7119d23a801fc4468775b'
+      MERGED_MAIN_SHA: '6834dbfc509db60ffc6d5f027a4fce646b3d37ff'
     steps:
       - name: Verify completed Windows build and exact tested candidate
         shell: bash
@@ -51,31 +51,31 @@ jobs:
           cat > release/release-notes.md <<EOF
           EN
 
-          # KADR now scrolls selected pages for you — Start / Stop
+          # Fix: Start response, safe scroll input and reliable screenshot saving
 
-          Press Alt+Shift+S and select a scrolling region of a page, long list, chat or document. Choose Up or Down and press Start. KADR scrolls by one small wheel step, waits for the page, captures the region, verifies the seam and repeats. No manual scrolling and no Add frame clicks.
+          Start now updates the KADR panel immediately and shows an error if the command cannot be started. The scrolling engine tries both posted and physical Windows wheel input and can reverse direction automatically when capture begins at the bottom of a chat.
 
-          Press Stop at the desired section to stop scrolling and automatically save one long PNG to disk and KADR History. Use Open file, Folder or Close. KADR stops itself at the apparent end of scrollable content and offers Save. Unsafe seams are not silently added.
+          The selection hint now applies to any scrollable screen area, not only chats. Saving uses the real Save button label. If the PNG is written but History indexing fails, KADR shows the existing file path; if normal output fails, it attempts a separate atomic recovery save in the user's local KADR folder.
 
-          Windows Flutter tests, Windows build and installer packaging passed; behavior in individual apps must be checked on a real Windows desktop.
+          Windows build, Flutter regression tests and installer packaging passed. GUI behavior in individual external apps still requires on-device acceptance.
 
           Build source commit: $BUILD_SOURCE_SHA
           Merged application commit: $MERGED_MAIN_SHA
 
           RU
 
-          # КАДР теперь сам прокручивает страницы — «Старт» / «Стоп»
+          # Исправлены запуск прокрутки и сохранение длинных скриншотов
 
-          Нажми Alt+Shift+S и выдели прокручиваемую область сайта, списка, чата или документа. Выбери направление вверх или вниз и нажми «Старт». КАДР сам прокручивает небольшими шагами, снимает каждый участок и проверяет совмещение перед следующей прокруткой. Не нужно ни прокручивать вручную, ни нажимать «Добавить».
+          Кнопка «Старт» сразу подтверждает нажатие или показывает ошибку запуска. КАДР пробует два способа прокрутки Windows и сам меняет направление, если захват начался у конца чата.
 
-          В нужном месте нажми «Стоп»: КАДР остановит прокрутку и автоматически сохранит один длинный PNG на диск и в историю. После сохранения доступны «Открыть», «Папка», «Закрыть». Когда содержимое перестаёт прокручиваться, КАДР остановится сам и предложит «Сохранить».
+          Подсказка теперь предлагает выбрать прокручиваемую область экрана, а не только чат. Если сохранение не удалось, программа предлагает нажать существующую кнопку «Сохранить», а не «Готово». Если снимок записался на диск, но не появился в истории, показывается путь к нему. При отказе обычного сохранения КАДР пробует записать PNG в резервную локальную папку.
 
-          Сборка Windows, тесты Flutter и создание установщика завершились успешно. Работу на конкретном компьютере с Телемостом и браузером необходимо проверить.
+          Тесты, компиляция Windows и упаковка установщика завершились успешно. Поведение на конкретном компьютере с браузером или Телемостом нужно проверить.
 
           Исходный commit сборки: $BUILD_SOURCE_SHA
           Commit приложения: $MERGED_MAIN_SHA
           EOF
-          gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title 'KADR Windows — Start / Stop auto-scrolling capture' --notes-file release/release-notes.md --latest
+          gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title 'KADR Windows — scrolling Start and Save fixes' --notes-file release/release-notes.md --latest
           gh release upload windows-latest release/KADR-Setup.exe release/KADR-Setup.sha256 --repo "$GITHUB_REPOSITORY" --clobber
       - name: Verify published file and source metadata
         shell: bash
