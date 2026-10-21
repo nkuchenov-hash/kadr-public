@@ -1,0 +1,93 @@
+name: Build KADR Companion personal cloud pairing 1.0.19 preview
+on:
+  push:
+    paths: ['.github/workflows/build-cloud-personal-preview-1_0_19.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-cloud-personal-preview-build
+  cancel-in-progress: false
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: b357feb183fbb15d19cdb7dfe9b5d743d99e062b
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Fetch experimental private KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: b357feb183fbb15d19cdb7dfe9b5d743d99e062b
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify exact tested revision
+        run: test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Run pairing and Android tests
+        working-directory: source/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest
+      - name: Restore Android signing key
+        shell: bash
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+      - name: Build verified signed APK
+        working-directory: source/mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/apk/release/app-release.apk >/dev/null
+      - name: Publish separate personal test release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp source/mobile/android/app/build/outputs/apk/release/app-release.apk KADR-Mobile-Cloud-Preview-1.0.19.apk
+          sha256sum KADR-Mobile-Cloud-Preview-1.0.19.apk > KADR-Mobile-Cloud-Preview-1.0.19.sha256
+          cat > /tmp/notes.md <<'EOF'
+          # KADR Companion 1.0.19 — personal cloud test preview
+
+          Experiment only. Keeps 1.0.18 production download unchanged.
+          v3 QR can now pair using the existing encrypted cloud relay credentials if both
+          direct Wi-Fi and private VPN endpoints are unavailable.
+
+          Existing local Wi-Fi and VPN pairing paths are retained.
+          Source revision: b357feb183fbb15d19cdb7dfe9b5d743d99e062b
+
+          Requires a KADR Windows desktop configured with the personal relay URL.
+          This preview is not a production cloud release; live phone transfer remains
+          to be validated on physical devices.
+          EOF
+          gh release create cloud-personal-preview-1.0.19 \
+            KADR-Mobile-Cloud-Preview-1.0.19.apk \
+            KADR-Mobile-Cloud-Preview-1.0.19.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --title 'KADR Companion 1.0.19 — Personal Cloud Preview' \
+            --notes-file /tmp/notes.md --prerelease
+          echo 'KADR_CLOUD_ANDROID_PREVIEW_READY'
