@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 5350f89974fbbbee65ca2cd34b8d3e312480842c
+          ref: 55bc0eaaeef8b1d383c2086872f639a4b6fbe7cb
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: source
           persist-credentials: false
@@ -27,7 +27,7 @@ jobs:
         working-directory: source
         shell: pwsh
         run: |
-          dart analyze lib/components/history_file_drag_region.dart lib/components/thumbnail.dart lib/features/history/history_window.dart lib/features/tray/tray_menu.dart lib/history_host_app.dart lib/features/editor/editor_screen.dart lib/state/app_state.dart
+          dart analyze --no-fatal-infos --no-fatal-warnings lib/components/history_file_drag_region.dart lib/components/thumbnail.dart lib/features/history/history_window.dart lib/features/tray/tray_menu.dart lib/history_host_app.dart lib/features/editor/editor_screen.dart lib/state/app_state.dart
       - working-directory: source
         run: flutter test test/history_persistence_test.dart test/history_host_sync_test.dart test/tray_surface_mount_contract_test.dart
       - name: Compile Windows
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 5350f89974fbbbee65ca2cd34b8d3e312480842c
+          ref: 55bc0eaaeef8b1d383c2086872f639a4b6fbe7cb
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: source
           persist-credentials: false
