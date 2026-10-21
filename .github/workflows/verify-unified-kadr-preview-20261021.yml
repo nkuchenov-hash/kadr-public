@@ -1,0 +1,57 @@
+name: Verify KADR unified preview
+on:
+  push:
+    paths: ['.github/workflows/verify-unified-kadr-preview-20261021.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 5350f89974fbbbee65ca2cd34b8d3e312480842c
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Analyze history and editor changes
+        working-directory: source
+        shell: pwsh
+        run: |
+          dart analyze lib/components/history_file_drag_region.dart lib/components/thumbnail.dart lib/features/history/history_window.dart lib/features/tray/tray_menu.dart lib/history_host_app.dart lib/features/editor/editor_screen.dart lib/state/app_state.dart
+      - working-directory: source
+        run: flutter test test/history_persistence_test.dart test/history_host_sync_test.dart test/tray_surface_mount_contract_test.dart
+      - name: Compile Windows
+        working-directory: source
+        run: flutter build windows --release --dart-define=KADR_RELAY_URL=https://217-114-0-201.sslip.io:8443
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 5350f89974fbbbee65ca2cd34b8d3e312480842c
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - working-directory: source/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
