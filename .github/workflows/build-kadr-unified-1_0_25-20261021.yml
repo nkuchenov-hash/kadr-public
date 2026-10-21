@@ -1,4 +1,4 @@
-name: Build KADR unified Windows and Android 1.0.25
+name: Build KADR native drag restored Windows and Android 1.0.25
 on:
   push:
     paths: ['.github/workflows/build-kadr-unified-1_0_25-20261021.yml']
@@ -13,13 +13,13 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+      SOURCE_SHA: c9d865359f0ef594645fb87af82b158e457de69c
       KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
     steps:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+          ref: c9d865359f0ef594645fb87af82b158e457de69c
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
@@ -39,7 +39,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Dart analysis failed' }
       - name: History and tray regression tests
         working-directory: source
-        run: flutter test test/history_persistence_test.dart test/history_host_sync_test.dart test/tray_surface_mount_contract_test.dart test/tray_recovery_after_capture_test.dart
+        run: flutter test test/history_persistence_test.dart test/history_host_sync_test.dart test/tray_surface_mount_contract_test.dart test/tray_recovery_after_capture_test.dart test/native_history_drag_contract_test.dart
       - name: Build Windows with personal cloud integrated
         working-directory: source
         shell: pwsh
@@ -65,12 +65,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 55
     env:
-      SOURCE_SHA: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+      SOURCE_SHA: c9d865359f0ef594645fb87af82b158e457de69c
     steps:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+          ref: c9d865359f0ef594645fb87af82b158e457de69c
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
@@ -133,7 +133,7 @@ jobs:
           set -euo pipefail
           test -s windows/KADR-Setup.exe
           test -s android/app-release.apk
-          cp windows/KADR-Setup.exe KADR-Windows-Unified-Setup.exe
+          cp windows/KADR-Setup.exe KADR-Windows-Native-Drag-Setup.exe
           cp android/app-release.apk KADR-Mobile-1.0.25.apk
           sha256sum KADR-Windows-Unified-Setup.exe KADR-Mobile-1.0.25.apk > SHA256SUMS.txt
           cat > notes.md <<'EOF'
@@ -148,18 +148,20 @@ jobs:
           file grid without opaque labels, native swipes left/right in preview,
           pencil to offline image editor, delete basket icon.
           
-          Windows: history localized RU/EN, native copy-only dragging from
+          Windows: native extensions + engine context registered on BOTH secondary
+          Flutter engines (tray and history): restores real OLE file drag-out.
+          History localized RU/EN, native copy-only dragging from
           history and tray, multi selection (Ctrl, right click, long press)
           and select-all; reveal the exact file in Explorer; tray recovery while
           Editor/History is open; editor tools below screenshot and properties
           to the side; transparent native notification of phone screenshot.
           
-          Source revision: 8e1871a7b9628a10e4b899bbcf309cb0eecef4b9
+          Source revision: c9d865359f0ef594645fb87af82b158e457de69c
           
           Builds and automated tests passed. Actual device/window interactions
           still need a physical end-to-end confirmation.
           EOF
-          gh release create kadr-unified-preview-1.0.25 KADR-Windows-Unified-Setup.exe KADR-Mobile-1.0.25.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --title "KADR Unified Preview — Windows + Android 1.0.25" --notes-file notes.md --prerelease
+          gh release create kadr-unified-preview-1.0.25-native-drag KADR-Windows-Unified-Setup.exe KADR-Mobile-1.0.25.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --title "KADR Unified Preview — Windows + Android 1.0.25" --notes-file notes.md --prerelease
           gh release view kadr-unified-preview-1.0.25 --repo "$GITHUB_REPOSITORY" --json assets > /tmp/assets.json
           node -e "const a=require('/tmp/assets.json').assets;for(const n of ['KADR-Windows-Unified-Setup.exe','KADR-Mobile-1.0.25.apk'])if(!a.some(x=>x.name===n&&x.size>1000000))process.exit(1)"
           echo KADR_UNIFIED_RELEASE_READY
