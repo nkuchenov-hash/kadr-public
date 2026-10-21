@@ -20,10 +20,10 @@ jobs:
     timeout-minutes: 12
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_RUN_ID: '39579044063'
-      EXPECTED_VERIFY_HEAD: '28127a51dfa7dddd1811566e1be111bbc63e0830'
-      BUILD_SOURCE_SHA: 'd7720cc961419e5e3e60aad73f70ad2f2b33588a'
-      MERGED_MAIN_SHA: '769caea771d2582f475440722c35b965319d2040'
+      VERIFIED_RUN_ID: '39584613334'
+      EXPECTED_VERIFY_HEAD: 'd1e5f186c2138cff7f2b76f2b8c741de20afebd3'
+      BUILD_SOURCE_SHA: 'b860b9f00817cda8e83b35bbe49785ef66e29fea'
+      MERGED_MAIN_SHA: 'bcafef22ca104dafc09b6d2c08e9a178e3cd5cb3'
     steps:
       - name: Verify completed Windows build and exact tested candidate
         shell: bash
@@ -51,31 +51,31 @@ jobs:
           cat > release/release-notes.md <<EOF
           EN
 
-          # Long chats now capture automatically while you scroll
+          # KADR now scrolls selected pages for you — Start / Stop
 
-          Alt+Shift+S selects a chat area. A red border stays visible while you scroll inside it. KADR automatically captures overlapping frames, showing progress in the same light/dark style as ordinary screenshot controls. No repeated Add clicks are needed.
+          Press Alt+Shift+S and select a scrolling region of a page, long list, chat or document. Choose Up or Down and press Start. KADR scrolls by one small wheel step, waits for the page, captures the region, verifies the seam and repeats. No manual scrolling and no Add frame clicks.
 
-          Pause, Finish and Cancel are located under the selection. Finish saves a single tall PNG and indexes it in History. The final panel shows the actual saved path and buttons to Open file, Folder or Close. Fast scroll gaps are flagged rather than silently combined.
+          Press Stop at the desired section to stop scrolling and automatically save one long PNG to disk and KADR History. Use Open file, Folder or Close. KADR stops itself at the apparent end of scrollable content and offers Save. Unsafe seams are not silently added.
 
-          Windows build and automated tests completed successfully. Physical GUI acceptance on your own Windows/Telemost setup is still required.
+          Windows Flutter tests, Windows build and installer packaging passed; behavior in individual apps must be checked on a real Windows desktop.
 
           Build source commit: $BUILD_SOURCE_SHA
           Merged application commit: $MERGED_MAIN_SHA
 
           RU
 
-          # Теперь длинный чат снимается автоматически при прокрутке
+          # КАДР теперь сам прокручивает страницы — «Старт» / «Стоп»
 
-          После Alt+Shift+S остаётся красная рамка, внутри которой можно прокручивать чат. КАДР самостоятельно захватывает новые участки, показывает прогресс и оформляет панель в том же светлом или тёмном стиле, что и обычный скриншот. Нажимать «Добавить» после каждой прокрутки больше не нужно.
+          Нажми Alt+Shift+S и выдели прокручиваемую область сайта, списка, чата или документа. Выбери направление вверх или вниз и нажми «Старт». КАДР сам прокручивает небольшими шагами, снимает каждый участок и проверяет совмещение перед следующей прокруткой. Не нужно ни прокручивать вручную, ни нажимать «Добавить».
 
-          Кнопки «Пауза», «Готово», «Отмена» располагаются под выделенной областью. «Готово» сохраняет один длинный PNG в историю. В конце виден фактический путь и кнопки «Открыть», «Папка», «Закрыть». При слишком быстрой прокрутке программа предупреждает о пропуске.
+          В нужном месте нажми «Стоп»: КАДР остановит прокрутку и автоматически сохранит один длинный PNG на диск и в историю. После сохранения доступны «Открыть», «Папка», «Закрыть». Когда содержимое перестаёт прокручиваться, КАДР остановится сам и предложит «Сохранить».
 
-          Windows-сборка и автоматические тесты завершились успешно. Работу интерфейса на конкретном компьютере с Телемостом ещё необходимо проверить.
+          Сборка Windows, тесты Flutter и создание установщика завершились успешно. Работу на конкретном компьютере с Телемостом и браузером необходимо проверить.
 
           Исходный commit сборки: $BUILD_SOURCE_SHA
           Commit приложения: $MERGED_MAIN_SHA
           EOF
-          gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title 'KADR Windows — automatic long screenshots' --notes-file release/release-notes.md --latest
+          gh release edit windows-latest --repo "$GITHUB_REPOSITORY" --title 'KADR Windows — Start / Stop auto-scrolling capture' --notes-file release/release-notes.md --latest
           gh release upload windows-latest release/KADR-Setup.exe release/KADR-Setup.sha256 --repo "$GITHUB_REPOSITORY" --clobber
       - name: Verify published file and source metadata
         shell: bash
