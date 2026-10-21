@@ -1,0 +1,131 @@
+name: Build GOLOS PR10 Windows installer
+on:
+  push:
+    paths:
+      - .github/workflows/build-golos-pr10-from-private.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: golos-windows-build-pr10
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 115
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout isolated private GOLOS build snapshot
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ci/golos-pr10-build-only-20261021
+          path: private-ci
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+      - name: Prepare GOLOS-only build workspace
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path private-ci/golos-ci-src/src-tauri/Cargo.toml)) { throw 'Private GOLOS source unavailable' }
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/GOLOS" | Out-Null
+          Copy-Item -Path private-ci/golos-ci-src/* -Destination "$env:RUNNER_TEMP/GOLOS" -Recurse -Force
+          Copy-Item -Path private-ci/golos-ci-src/.* -Destination "$env:RUNNER_TEMP/GOLOS" -Recurse -Force -ErrorAction SilentlyContinue
+          $buildScript = "$env:RUNNER_TEMP/GOLOS/src-tauri/build.rs"
+          $code = Get-Content $buildScript -Raw
+          $old = 'let commit = git_commit_label();'
+          if (-not $code.Contains($old)) { throw 'Build identity source changed' }
+          $code = $code.Replace($old, 'let commit = std::env::var("GOLOS_SOURCE_SHA_OVERRIDE").unwrap_or_else(|_| git_commit_label());')
+          [System.IO.File]::WriteAllText($buildScript, $code)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/GOLOS/src-tauri
+      - name: Generate original GOLOS brand icons
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tools = "$env:RUNNER_TEMP/golos-icon-tools"
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          & npm install --prefix $tools --no-audit --no-fund --silent sharp png-to-ico@2.1.8 *> "$env:RUNNER_TEMP/golos-icon-install.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Icon dependencies unavailable' }
+          $source = "$env:RUNNER_TEMP/GOLOS/src/assets/golos-app-icon.svg"
+          $iconDir = "$env:RUNNER_TEMP/GOLOS/src-tauri/icons"
+          New-Item -ItemType Directory -Force $iconDir | Out-Null
+          $js = @'
+          const fs=require('fs');
+          const path=require('path');
+          const root=process.env.RUNNER_TEMP;
+          const sharp=require(path.join(root,'golos-icon-tools/node_modules/sharp'));
+          const pngToIco=require(path.join(root,'golos-icon-tools/node_modules/png-to-ico'));
+          const src=fs.readFileSync(path.join(root,'GOLOS/src/assets/golos-app-icon.svg'));
+          const out=path.join(root,'GOLOS/src-tauri/icons');
+          (async()=> {
+            const buffers=await Promise.all([16,32,48,64,128,256].map(n=>sharp(src).resize(n,n).png().toBuffer()));
+            fs.writeFileSync(path.join(out,'icon.png'),buffers[buffers.length-1]);
+            fs.writeFileSync(path.join(out,'icon.ico'),await pngToIco(buffers));
+          })().catch(()=>process.exit(1));
+          '@
+          $script="$tools/generate.cjs"
+          [System.IO.File]::WriteAllText($script,$js)
+          node $script *> "$env:RUNNER_TEMP/golos-icon-generate.log"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$iconDir/icon.ico")) { throw 'GOLOS brand icon generation failed' }
+      - name: Verify TypeScript and frontend
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cd "$env:RUNNER_TEMP/GOLOS"
+          npm ci *> "$env:RUNNER_TEMP/golos-npm.log"
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+          npm test *> "$env:RUNNER_TEMP/golos-frontend-test.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
+          npm run test:architecture *> "$env:RUNNER_TEMP/golos-architecture.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Architecture tests failed' }
+          npm run build *> "$env:RUNNER_TEMP/golos-tsc.log"
+          if ($LASTEXITCODE -ne 0) { throw 'TypeScript build failed' }
+      - name: Verify Windows Rust tests
+        shell: pwsh
+        env:
+          GOLOS_SOURCE_SHA_OVERRIDE: 8bef6934
+        run: |
+          cd "$env:RUNNER_TEMP/GOLOS/src-tauri"
+          cargo test --release --locked *> "$env:RUNNER_TEMP/golos-rust-tests.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Rust Windows regression tests failed' }
+      - name: Compile Windows installer
+        shell: pwsh
+        env:
+          GOLOS_SOURCE_SHA_OVERRIDE: 8bef6934
+        run: |
+          cd "$env:RUNNER_TEMP/GOLOS"
+          npm run tauri build *> "$env:RUNNER_TEMP/golos-tauri-build.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Tauri compilation failed' }
+      - name: Publish verified GOLOS binary
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setups=@(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
+          if ($setups.Count -ne 1) { throw 'Expected one Windows installer' }
+          $target='GOLOS_PR-10_8bef6934_x64-setup.exe'
+          Copy-Item $setups[0].FullName $target
+          $hash=(Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ((Get-Item $target).Length -lt 1000000) { throw 'Installer too small' }
+          gh release create golos-pr10-preview $target --repo $env:GITHUB_REPOSITORY --title 'GOLOS PR10 Windows preview' --notes 'Build 8bef6934. Windows tests passed. English voice quality must still be verified on an actual microphone.' --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Public release publication failed' }
+          Copy-Item $target downloads/GOLOS-Setup.exe -Force
+          "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
+          $info=@{ name=$target; revision='8bef6934'; sha256=$hash; sizeBytes=(Get-Item $target).Length; publishedAt=(Get-Date).ToUniversalTime().ToString('o'); channel='preview' }
+          $info | ConvertTo-Json | Set-Content -Encoding utf8 golos/release.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
+          git commit -m 'Publish GOLOS PR10 Windows tested build'
+          if ($LASTEXITCODE -ne 0) { throw 'Site commit failed' }
+          git pull --rebase origin main
+          if ($LASTEXITCODE -ne 0) { throw 'Site rebase failed' }
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Site push failed' }
