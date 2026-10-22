@@ -1,0 +1,100 @@
+name: Release KADR Windows 1.0.27 continuous long screenshots
+on:
+  push:
+    paths: ['.github/workflows/publish-kadr-windows-1_0_27-long-scroll.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-windows-1-0-27-continuous-scroll
+  cancel-in-progress: false
+jobs:
+  build-and-publish:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    env:
+      SOURCE_SHA: 2d0b16d3a579631e16adb9a6a5d717afe66bc99c
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 2d0b16d3a579631e16adb9a6a5d717afe66bc99c
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify release source and installed version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong source commit' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.27\+27')) { throw 'Wrong Flutter app version' }
+          if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.27'")) { throw 'Wrong UI version' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Test continuous long capture, seam overlap, tray and history
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/manual_scroll_capture_test.dart test/tray_recovery_after_capture_test.dart test/history_host_sync_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Regression tests failed' }
+      - name: Build Windows 1.0.27 release
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL" "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compile failed' }
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          if (-not (Test-Path $exe)) { throw 'Missing Windows executable' }
+          $ver = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $ver.StartsWith('1.0.27')) { throw "Incorrect product version: $ver" }
+      - name: Package installer
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup install failed' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Missing installer' }
+      - name: Publish versioned preview
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.27.exe
+          $hash = (Get-FileHash KADR-Setup-1.0.27.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Setup-1.0.27.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          @'
+          EN
+
+          # KADR Windows 1.0.27 — Continuous scrolling capture fix
+
+          Long screenshot capture advances the selected scrollable area in overlapping multi-notch steps instead of a single wheel tick. The Windows native bridge uses real mouse input, with discrete wheel fallback for apps that ignore a combined event. The stitcher knows the chosen direction, handles sticky headers, accepts small movements and retries unsettled viewports without losing the screenshot.
+
+          Start begins repeated capture. Stop saves the stitched PNG. A true end of content or unverifiable seam stops safely with the already captured image available.
+
+          Automated scroll/stitching tests, tray/history regressions, Windows compilation and installer version checks passed. Physical testing in browser, chat and document windows is still needed; this is a release candidate.
+
+          Source: 2d0b16d3a579631e16adb9a6a5d717afe66bc99c
+
+          RU
+
+          # КАДР Windows 1.0.27 — непрерывный длинный скриншот
+
+          Теперь КАДР прокручивает выделенную область последовательными шагами с перекрытием, а не по одному маленькому делению колеса. Нативный движок отправляет настоящие события прокрутки; если приложение их не обрабатывает, пробует отдельные импульсы. Склейка учитывает выбранное направление, закреплённые заголовки и небольшие смещения, повторно проверяя кадры во время анимации.
+
+          «Старт» начинает последовательный захват. «Стоп» сохраняет один длинный PNG. При настоящем конце содержимого или невозможности безопасно совместить кадры уже отснятая часть остаётся доступной для сохранения.
+
+          Автоматические тесты, сборка Windows и проверка версии установщика прошли успешно. Реальное поведение в браузере, чате и документах ещё необходимо проверить; это кандидат в релиз.
+
+          Исходный commit: 2d0b16d3a579631e16adb9a6a5d717afe66bc99c
+          '@ | Set-Content -Encoding utf8 release-notes.md
+          gh release create kadr-windows-1.0.27-rc KADR-Setup-1.0.27.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows 1.0.27 — Continuous Scrolling Fix (RC)' --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
+      - name: Verify downloadable versioned installer
+        shell: pwsh
+        run: |
+          $rel = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/kadr-windows-1.0.27-rc" | ConvertFrom-Json
+          $a = $rel.assets | Where-Object { $_.name -eq 'KADR-Setup-1.0.27.exe' }
+          if (-not $a -or $a.size -lt 10000000) { throw 'Release asset missing' }
+          Write-Output 'KADR_WINDOWS_1_0_27_PUBLISHED'
