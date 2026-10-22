@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.28",
+  "current_version": "1.0.29",
   "channel": "release-candidate",
   "release_date": "2026-10-22",
-  "published_at": "2026-10-22T11:04:05Z",
-  "source_commit": "d0a0cda72f625b99c8ebf7db251f83b1034102ba",
-  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/39766869828",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.28-rc",
+  "published_at": "2026-10-22T11:42:30Z",
+  "source_commit": "71e0eb5751067ccd7ae8befd40560f28cd2a1aed",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/39771725841",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.29-rc",
   "windows": {
-    "version": "1.0.28",
-    "build": 28,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.28-rc/KADR-Setup-1.0.28.exe",
-    "filename": "KADR-Setup-1.0.28.exe",
-    "size_bytes": 12753956,
-    "sha256": "2091d9f29dd44076c44c9d1f7c1493c6731ec9153dfe6071d648ca076f40627c",
+    "version": "1.0.29",
+    "build": 29,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.29-rc/KADR-Setup-1.0.29.exe",
+    "filename": "KADR-Setup-1.0.29.exe",
+    "size_bytes": 12756732,
+    "sha256": "da8534e4e2ec16164a13b0b88431035d2dbdc42afee037cca632252f0197a0bd",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -34,6 +34,6 @@
     "physical_long_scrolling": "not-verified",
     "physical_recent_history": "not-verified"
   },
-  "notes": "Windows 1.0.28 RC, Android 1.0.26 RC. Date-scoped automatic recovery of missing History/Recent PNGs and continuous long screenshots. Physical end-to-end verification pending. Never silently replace immutable versioned installers.",
+  "notes": "Windows 1.0.29 RC: calibrated fast scrolling targeting 90% selected height. Windows CI successful; physical scroll, History and drag-and-drop acceptance still pending. PDF export is not yet included.",
   "current_version_scope": "windows"
 }
