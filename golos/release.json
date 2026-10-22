@@ -1,8 +1,8 @@
 {
-  "publishedAt": "2026-10-22T11:24:00.2235104Z",
-  "sizeBytes": 9295300,
   "name": "GOLOS_PR-10_607aaaec_x64-setup.exe",
+  "revision": "607aaaec",
   "sha256": "c8ef296c089b57772612929f25a8ec43c57bed887343e24533f0339278d77dc6",
-  "channel": "preview",
-  "revision": "607aaaec"
+  "sizeBytes": 9295300,
+  "publishedAt": "2026-10-22T11:23:58Z",
+  "channel": "preview"
 }
