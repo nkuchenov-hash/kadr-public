@@ -1,7 +1,7 @@
 name: Release KADR Windows 1.0.30 PDF and unbounded scrolling
 on:
   push:
-    paths: ['.github/workflows/release-kadr-windows-1_0_30-fast-scroll.yml']
+    paths: ['.github/workflows/release-kadr-windows-1_0_30-pdf-long-scroll.yml']
   workflow_dispatch:
 permissions:
   contents: write
