@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 75
     env:
-      SOURCE_SHA: 421f5d6e334080a8b3a0e4fc10840c89d5497d8b
+      SOURCE_SHA: 176335853d57f065392312b3d5034c1211ddae53
       KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 421f5d6e334080a8b3a0e4fc10840c89d5497d8b
+          ref: 176335853d57f065392312b3d5034c1211ddae53
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 0
@@ -92,7 +92,7 @@ jobs:
 
           Windows compilation, PDF/page-integrity tests, history/tray regression tests and native editor protections passed for the pinned source revision. Real-device Windows acceptance in individual chat applications remains pending.
 
-          Source commit: 421f5d6e334080a8b3a0e4fc10840c89d5497d8b
+          Source commit: 176335853d57f065392312b3d5034c1211ddae53
 
           RU
 
@@ -104,7 +104,7 @@ jobs:
 
           Пройдены автоматические тесты PDF, склейки, истории и трея, проверка защищённого редактора и Windows-сборка. Работу на конкретном компьютере ещё необходимо проверить.
 
-          Исходный commit: 421f5d6e334080a8b3a0e4fc10840c89d5497d8b
+          Исходный commit: 176335853d57f065392312b3d5034c1211ddae53
           '@ | Set-Content -Encoding utf8 release-notes.md
           gh release create kadr-windows-1.0.30-rc KADR-Setup-1.0.30.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows 1.0.30 — PDF and Continuous Scrolling (RC)' --notes-file release-notes.md --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }
