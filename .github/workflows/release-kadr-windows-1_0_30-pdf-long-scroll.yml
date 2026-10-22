@@ -1,0 +1,117 @@
+name: Release KADR Windows 1.0.30 PDF and unbounded scrolling
+on:
+  push:
+    paths: ['.github/workflows/release-kadr-windows-1_0_30-fast-scroll.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-windows-1-0-30-fast-scroll
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    env:
+      SOURCE_SHA: 48a47defe5c36011323a39d0d57ee07b257ed10e
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact private KADR candidate
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 48a47defe5c36011323a39d0d57ee07b257ed10e
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: source
+      - name: Verify source provenance and visible Windows version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong source commit' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.29\+29')) { throw 'Wrong Flutter version' }
+          if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.29'")) { throw 'Wrong visible version' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - name: Resolve Flutter packages
+        working-directory: source
+        run: flutter pub get
+      - name: Analyze changed scrolling and history owners
+        shell: pwsh
+        working-directory: source
+        run: |
+          dart analyze --no-fatal-warnings lib/core/services/manual_scroll_stitcher.dart lib/core/services/manual_scroll_export_service.dart lib/core/services/manual_scroll_panel_service.dart lib/core/models/app_settings.dart lib/state/app_state.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Dart analysis failed' }
+      - name: Verify viewport speed, pixel seams, and history/tray invariants
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter test test/manual_scroll_capture_test.dart test/manual_scroll_export_test.dart test/recent_capture_history_recovery_test.dart test/history_host_sync_test.dart test/history_persistence_test.dart test/native_history_plugin_registration_test.dart test/tray_recovery_after_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Scrolling or history regression tests failed' }
+      - name: Verify protected editor and UI baseline
+        shell: pwsh
+        working-directory: source
+        run: |
+          ./tool/verify_capture_editor_lock.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Capture editor lock violated' }
+          ./tool/verify_working_ui_baseline.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Working UI baseline violated' }
+      - name: Compile exact Windows build
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL" "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compilation failed' }
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          if (-not (Test-Path $exe)) { throw 'Missing KADR exe' }
+          $ver = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $ver.StartsWith('1.0.30')) { throw "Wrong exe version: $ver" }
+      - name: Build Inno Setup installer
+        shell: pwsh
+        working-directory: source
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install Inno Setup' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer missing' }
+      - name: Publish immutable 1.0.30 release candidate
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.30.exe
+          $hash = (Get-FileHash KADR-Setup-1.0.30.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Setup-1.0.30.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          @'
+          EN
+
+          # KADR 1.0.30: choose PNG, multipage PDF, or Both
+
+          The long screenshot toolbar now contains a visible saved-format selector: PNG / PDF / PNG + PDF. The choice is remembered between sessions. A4 PDF pages are assembled from verified sequential strips; exceptionally long PNG screenshots are saved as contiguous numbered parts so the entire capture is retained.
+
+          Long capture does not automatically end at 180 frames, 40,000px height or 90MP. Scanned strips are spooled to disk, not held as one growing image in memory. When a page stops scrolling or alignment is uncertain, KADR pauses with a clear reason and keeps Save and Start-to-retry available.
+
+          Windows compilation, PDF/page-integrity tests, history/tray regression tests and native editor protections passed for the pinned source revision. Real-device Windows acceptance in individual chat applications remains pending.
+
+          Source commit: 48a47defe5c36011323a39d0d57ee07b257ed10e
+
+          RU
+
+          # КАДР 1.0.30: PNG, многостраничный PDF или оба формата
+
+          На панели длинных скриншотов появился выбор PNG / PDF / PNG + PDF. Настройка запоминается. PDF составляется на отдельных страницах A4 без повторов строк, а необычно большие PNG делятся на последовательно пронумерованные файлы без потерь.
+
+          Убрано автоматическое завершение записи по пределу 180 кадров, высоте 40 000 пикселей или 90 млн пикселей. Кадры временно сохраняются на диск. Если прокрутка остановилась или кадры не совпали, КАДР сообщает об этом, оставляя кнопки «Старт» и «Сохранить».
+
+          Пройдены автоматические тесты PDF, склейки, истории и трея, проверка защищённого редактора и Windows-сборка. Работу на конкретном компьютере ещё необходимо проверить.
+
+          Исходный commit: 48a47defe5c36011323a39d0d57ee07b257ed10e
+          '@ | Set-Content -Encoding utf8 release-notes.md
+          gh release create kadr-windows-1.0.30-rc KADR-Setup-1.0.30.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows 1.0.30 — PDF and Continuous Scrolling (RC)' --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }
+      - name: Validate published installer metadata
+        shell: pwsh
+        run: |
+          $r = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/kadr-windows-1.0.30-rc" | ConvertFrom-Json
+          $a = $r.assets | Where-Object { $_.name -eq 'KADR-Setup-1.0.30.exe' }
+          if (-not $a -or $a.size -lt 10000000) { throw 'Public installer missing' }
+          Write-Host 'KADR_1_0_30_VERIFIED_PUBLIC_ASSET'
