@@ -1,9 +1,9 @@
 {
-  "sizeBytes": 9295105,
-  "version": "0.1.3",
-  "channel": "preview",
-  "publishedAt": "2026-10-22T12:59:22.2671743Z",
-  "sha256": "2c866a0798bc8c4741e830aac1893ef1b1144dc3dfcb351e84bbb622e8c84824",
+  "name": "GOLOS_PR-10_3490dd63_x64-setup.exe",
   "revision": "3490dd63",
-  "name": "GOLOS_PR-10_3490dd63_x64-setup.exe"
+  "sha256": "2c866a0798bc8c4741e830aac1893ef1b1144dc3dfcb351e84bbb622e8c84824",
+  "sizeBytes": 9295105,
+  "publishedAt": "2026-10-22T12:59:20Z",
+  "channel": "preview",
+  "version": "0.1.3"
 }
