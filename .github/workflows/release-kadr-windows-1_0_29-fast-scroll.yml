@@ -1,0 +1,112 @@
+name: Release KADR Windows 1.0.29 fast-scrolling preview
+on:
+  push:
+    paths: ['.github/workflows/release-kadr-windows-1_0_29-fast-scroll.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-windows-1-0-29-fast-scroll
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    env:
+      SOURCE_SHA: 4d1c4889a8474a804e3c0480aec715fbca296481
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact private KADR candidate
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 4d1c4889a8474a804e3c0480aec715fbca296481
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify source provenance and visible Windows version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong source commit' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.29\+29')) { throw 'Wrong Flutter version' }
+          if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.29'")) { throw 'Wrong visible version' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - name: Resolve Flutter packages
+        working-directory: source
+        run: flutter pub get
+      - name: Analyze changed scrolling and history owners
+        shell: pwsh
+        working-directory: source
+        run: |
+          dart analyze --no-fatal-warnings lib/core/services/manual_scroll_stitcher.dart lib/core/services/manual_scroll_panel_service.dart lib/state/app_state.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Dart analysis failed' }
+      - name: Verify viewport speed, pixel seams, and history/tray invariants
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter test test/manual_scroll_capture_test.dart test/recent_capture_history_recovery_test.dart test/history_host_sync_test.dart test/history_persistence_test.dart test/native_history_plugin_registration_test.dart test/tray_recovery_after_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Scrolling or history regression tests failed' }
+      - name: Verify protected editor and UI baseline
+        shell: pwsh
+        working-directory: source
+        run: |
+          ./tool/verify_capture_editor_lock.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Capture editor lock violated' }
+          ./tool/verify_working_ui_baseline.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Working UI baseline violated' }
+      - name: Compile exact Windows build
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL" "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compilation failed' }
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          if (-not (Test-Path $exe)) { throw 'Missing KADR exe' }
+          $ver = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $ver.StartsWith('1.0.29')) { throw "Wrong exe version: $ver" }
+      - name: Build Inno Setup installer
+        shell: pwsh
+        working-directory: source
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install Inno Setup' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer missing' }
+      - name: Publish immutable 1.0.29 release candidate
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.29.exe
+          $hash = (Get-FileHash KADR-Setup-1.0.29.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Setup-1.0.29.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          @'
+          EN
+
+          # KADR Windows 1.0.29 — faster full-region scrolling
+
+          Long screenshots now calibrate their wheel steps to capture roughly 90% of the selected region per frame instead of scrolling by tiny fractions of a screen. KADR preserves a measurable overlap, retries uncertain seams and can reverse an overshot scroll. Capture settling and image assembly are faster.
+
+          Regression tests, code analysis, Windows compilation, and installer packaging completed on the exact source commit. Physical Windows testing for browsers, chats, History, and tray drag-out is still needed. PDF export is not included: PNG only.
+
+          Source: 4d1c4889a8474a804e3c0480aec715fbca296481
+
+          RU
+
+          # КАДР Windows 1.0.29 — ускоренная прокрутка длинных снимков
+
+          КАДР измеряет реальное смещение и стремится захватывать примерно 90% выделенной высоты за шаг вместо медленной прокрутки маленькими порциями. Для точной склейки сохраняется перекрытие, при слишком большом смещении выполняется обратная коррекция. Ускорены ожидание кадра и объединение снимков.
+
+          Автоматические тесты, анализ кода и сборка установщика выполнены на точной версии исходников. Реальную работу в браузерах, чатах, истории и перетаскивание файлов ещё необходимо проверить на Windows. PDF пока не включён, только PNG.
+
+          Исходный commit: 4d1c4889a8474a804e3c0480aec715fbca296481
+          '@ | Set-Content -Encoding utf8 release-notes.md
+          gh release create kadr-windows-1.0.29-rc KADR-Setup-1.0.29.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows 1.0.29 — Fast Scrolling (RC)' --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }
+      - name: Validate published installer metadata
+        shell: pwsh
+        run: |
+          $r = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/kadr-windows-1.0.29-rc" | ConvertFrom-Json
+          $a = $r.assets | Where-Object { $_.name -eq 'KADR-Setup-1.0.29.exe' }
+          if (-not $a -or $a.size -lt 10000000) { throw 'Public installer missing' }
+          Write-Host 'KADR_1_0_29_VERIFIED_PUBLIC_ASSET'
