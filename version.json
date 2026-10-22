@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.29",
+  "current_version": "1.0.30",
   "channel": "release-candidate",
   "release_date": "2026-10-22",
-  "published_at": "2026-10-22T11:42:30Z",
-  "source_commit": "71e0eb5751067ccd7ae8befd40560f28cd2a1aed",
-  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/39771725841",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.29-rc",
+  "published_at": "2026-10-22T13:18:17Z",
+  "source_commit": "5aba049fc23023edbd8b6984319fa160b7ac1364",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/39784494928",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.30-rc",
   "windows": {
-    "version": "1.0.29",
-    "build": 29,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.29-rc/KADR-Setup-1.0.29.exe",
-    "filename": "KADR-Setup-1.0.29.exe",
-    "size_bytes": 12756732,
-    "sha256": "da8534e4e2ec16164a13b0b88431035d2dbdc42afee037cca632252f0197a0bd",
+    "version": "1.0.30",
+    "build": 30,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.30-rc/KADR-Setup-1.0.30.exe",
+    "filename": "KADR-Setup-1.0.30.exe",
+    "size_bytes": 12764669,
+    "sha256": "18344f73ea5ba4423f530f53187b0126bcc72928c0e63d47e23f3a00b92ff316",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -34,6 +34,6 @@
     "physical_long_scrolling": "not-verified",
     "physical_recent_history": "not-verified"
   },
-  "notes": "Windows 1.0.29 RC: calibrated fast scrolling targeting 90% selected height. Windows CI successful; physical scroll, History and drag-and-drop acceptance still pending. PDF export is not yet included.",
+  "notes": "Windows 1.0.30 RC: long screenshots can be saved as A4 multipage PDF, PNG, or both using a visible persistent panel selector. Capture strips spool to disk, no automatic termination at former 180 frames / 40k pixels / 90MP limits. Windows CI tests and compilation passed; physical device validation pending.",
   "current_version_scope": "windows"
 }
