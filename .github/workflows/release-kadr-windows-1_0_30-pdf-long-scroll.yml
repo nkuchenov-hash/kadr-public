@@ -30,7 +30,7 @@ jobs:
         shell: pwsh
         run: |
           if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong source commit' }
-          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.30\+29')) { throw 'Wrong Flutter version' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.30\+30')) { throw 'Wrong Flutter version' }
           if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.30'")) { throw 'Wrong visible version' }
       - uses: subosito/flutter-action@v2
         with: {channel: stable, cache: true}
