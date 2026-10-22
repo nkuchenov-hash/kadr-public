@@ -93,7 +93,7 @@ jobs:
           GOLOS_SOURCE_SHA_OVERRIDE: 607aaaec
         run: |
           cd "$env:RUNNER_TEMP/GOLOS/src-tauri"
-          cargo test --release --locked *> "$env:RUNNER_TEMP/golos-rust-tests.log"
+          cargo test --release *> "$env:RUNNER_TEMP/golos-rust-tests.log"
           if ($LASTEXITCODE -ne 0) {
             # Only compiler diagnostics, not source excerpts or entire private logs.
             # This allows fixing CI errors without exposing GOLOS code publicly.
