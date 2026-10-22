@@ -13,14 +13,14 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: c05d6056adc772e4327e8f2c263e96d185cb0af0
+      SOURCE_SHA: d0a0cda72f625b99c8ebf7db251f83b1034102ba
       KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: c05d6056adc772e4327e8f2c263e96d185cb0af0
+          ref: d0a0cda72f625b99c8ebf7db251f83b1034102ba
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
@@ -82,7 +82,7 @@ jobs:
 
           This is a release candidate: actual scrolling and file delivery on the user's Windows machine remain to be confirmed. Existing screenshots are never intentionally deleted by the upgrade.
 
-          Exact source: c05d6056adc772e4327e8f2c263e96d185cb0af0
+          Exact source: d0a0cda72f625b99c8ebf7db251f83b1034102ba
 
           # КАДР 1.0.28 — длинные скриншоты и восстановление истории
 
