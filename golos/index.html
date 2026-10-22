@@ -81,6 +81,8 @@ fetch(manifestUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release
    status.textContent=lang==='ru'?'Опубликована тестовая сборка от 19 октября. Исправления RU/EN и длинной диктовки пока не включены.':'Preview from October 19. RU/EN and long dictation fixes are not yet included.';
  }else if(revision==='607aaaec'){
    status.textContent=lang==='ru'?'Версия 0.1.1: автоматическое определение языка, сохранение WAV и аудиоплеер в истории.':'Version 0.1.1: automatic language selection, saved WAVs, and audio playback in History.';
+ }else if(revision==='c8e30259'){
+   status.textContent=lang==='ru'?'Версия 0.1.2: исправлена подготовка потокового Auto, история компактнее, логи читаемее, финальные уведомления отключены.':'Version 0.1.2: native Auto streaming fix, compact History, smaller logs, and no final pop-ups.';
  }else{
    status.textContent='';
  }
