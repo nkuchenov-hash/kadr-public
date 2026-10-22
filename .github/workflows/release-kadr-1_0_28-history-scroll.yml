@@ -1,0 +1,105 @@
+name: Release KADR Windows 1.0.28 history and scrolling repairs
+on:
+  push:
+    paths: ['.github/workflows/release-kadr-1_0_28-history-scroll.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-windows-1-0-28-repair
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    env:
+      SOURCE_SHA: c05d6056adc772e4327e8f2c263e96d185cb0af0
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: c05d6056adc772e4327e8f2c263e96d185cb0af0
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify source and desktop version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Source mismatch' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.28\+28')) { throw 'Wrong Flutter version' }
+          if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.28'")) { throw 'Wrong visible version' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Verify History and capture source compiles
+        shell: pwsh
+        working-directory: source
+        run: |
+          dart analyze --no-fatal-warnings lib/core/services/history_service.dart lib/core/services/history_host_service.dart lib/core/services/tray_popup_host_service.dart lib/core/services/capture_pipeline.dart lib/history_host_app.dart lib/state/app_state.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Dart source analysis failed' }
+      - name: Long scroll and lost screenshot regression tests
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter test test/manual_scroll_capture_test.dart test/recent_capture_history_recovery_test.dart test/history_host_sync_test.dart test/history_persistence_test.dart test/tray_recovery_after_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Screenshot or history regression tests failed' }
+      - name: Native Windows release compilation
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL" "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          if (-not (Test-Path $exe)) { throw 'Missing KADR executable' }
+          $ver = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $ver.StartsWith('1.0.28')) { throw "Wrong exe version: $ver" }
+      - name: Package tested installer
+        shell: pwsh
+        working-directory: source
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install Inno Setup' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer missing' }
+      - name: Publish versioned preview
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.28.exe
+          $hash = (Get-FileHash KADR-Setup-1.0.28.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Setup-1.0.28.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          @'
+          # KADR Windows 1.0.28 — continuous long screenshots and history recovery
+
+          - Long screenshots scroll in overlapping batches instead of a tiny single wheel step, accepting small offsets and sticky headers.
+          - History and Tray reload the durable index and recover new captures saved on disk even when indexing failed.
+          - Emergency KADR-Long screenshots become real scrolling records in History.
+          - Deleted captures are never restored.
+          - Two back-to-back screenshots, separate History engines, emergency recovery and long scrolling are covered by regression tests.
+          - Release tests, Windows native build and version checks passed.
+
+          This is a release candidate: actual scrolling and file delivery on the user's Windows machine remain to be confirmed. Existing screenshots are never intentionally deleted by the upgrade.
+
+          Exact source: c05d6056adc772e4327e8f2c263e96d185cb0af0
+
+          # КАДР 1.0.28 — длинные скриншоты и восстановление истории
+
+          - Прокрутка захватывает последовательные участки выделенной области вместо нескольких пикселей.
+          - История и трей перечитывают индекс и автоматически восстанавливают недавние скриншоты с диска.
+          - Аварийно сохранённые длинные снимки тоже добавляются в историю.
+          - Удалённые пользователем записи не возвращаются.
+          - Проверены тесты двух последовательных снимков, разных окон истории, восстановления и склейки.
+
+          Кандидат в релиз. Реальную работу прокрутки на вашем ПК ещё нужно проверить.
+          '@ | Set-Content -Encoding utf8 release-notes.md
+          gh release create kadr-windows-1.0.28-rc KADR-Setup-1.0.28.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows 1.0.28 — Scrolling and History Repair (RC)' --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release failed' }
+      - name: Verify actual published binary
+        shell: pwsh
+        run: |
+          $rel = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/kadr-windows-1.0.28-rc" | ConvertFrom-Json
+          $asset = $rel.assets | Where-Object { $_.name -eq 'KADR-Setup-1.0.28.exe' }
+          if (-not $asset -or $asset.size -lt 10000000) { throw 'Published installer missing' }
+          Write-Output 'KADR_WINDOWS_1_0_28_RELEASE_PUBLISHED'
