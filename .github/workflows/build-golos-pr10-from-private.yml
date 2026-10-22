@@ -44,6 +44,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ${{ runner.temp }}/GOLOS/src-tauri
+          cache-on-failure: true
       - name: Generate original GOLOS brand icons
         shell: pwsh
         run: |
@@ -89,7 +90,7 @@ jobs:
       - name: Verify Windows Rust tests
         shell: pwsh
         env:
-          GOLOS_SOURCE_SHA_OVERRIDE: 8bef6934
+          GOLOS_SOURCE_SHA_OVERRIDE: 607aaaec
         run: |
           cd "$env:RUNNER_TEMP/GOLOS/src-tauri"
           cargo test --release --locked *> "$env:RUNNER_TEMP/golos-rust-tests.log"
@@ -119,7 +120,7 @@ jobs:
       - name: Compile Windows installer
         shell: pwsh
         env:
-          GOLOS_SOURCE_SHA_OVERRIDE: 8bef6934
+          GOLOS_SOURCE_SHA_OVERRIDE: 607aaaec
         run: |
           cd "$env:RUNNER_TEMP/GOLOS"
           npm run tauri build *> "$env:RUNNER_TEMP/golos-tauri-build.log"
@@ -132,15 +133,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $setups=@(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
           if ($setups.Count -ne 1) { throw 'Expected one Windows installer' }
-          $target='GOLOS_PR-10_8bef6934_x64-setup.exe'
+          $target='GOLOS_PR-10_607aaaec_x64-setup.exe'
           Copy-Item $setups[0].FullName $target
           $hash=(Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
           if ((Get-Item $target).Length -lt 1000000) { throw 'Installer too small' }
-          gh release create golos-pr10-preview $target --repo $env:GITHUB_REPOSITORY --title 'GOLOS PR10 Windows preview' --notes 'Build 8bef6934. Windows tests passed. English voice quality must still be verified on an actual microphone.' --prerelease
+          gh release create golos-pr10-preview $target --repo $env:GITHUB_REPOSITORY --title 'GOLOS PR10 Windows preview' --notes 'Build 607aaaec. Windows tests passed. English voice quality must still be verified on an actual microphone.' --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Public release publication failed' }
           Copy-Item $target downloads/GOLOS-Setup.exe -Force
           "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
-          $info=@{ name=$target; revision='8bef6934'; sha256=$hash; sizeBytes=(Get-Item $target).Length; publishedAt=(Get-Date).ToUniversalTime().ToString('o'); channel='preview' }
+          $info=@{ name=$target; revision='607aaaec'; sha256=$hash; sizeBytes=(Get-Item $target).Length; publishedAt=(Get-Date).ToUniversalTime().ToString('o'); channel='preview' }
           $info | ConvertTo-Json | Set-Content -Encoding utf8 golos/release.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
