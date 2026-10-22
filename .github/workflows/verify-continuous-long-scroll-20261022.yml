@@ -1,0 +1,37 @@
+name: Verify continuous long screenshot capture
+on:
+  push:
+    paths: ['.github/workflows/verify-continuous-long-scroll-20261022.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 50
+    env:
+      KADR_SOURCE_SHA: 226bbf015d6b2006a9ed4cff4396c88c2ed05f45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 226bbf015d6b2006a9ed4cff4396c88c2ed05f45
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:KADR_SOURCE_SHA) { throw 'Wrong source revision' }
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: source
+        run: flutter pub get
+      - name: Continuous scrolling regression tests
+        working-directory: source
+        run: flutter test test/manual_scroll_capture_test.dart
+      - name: Compile real C++ Windows scroll wheel bridge
+        working-directory: source
+        run: flutter build windows --release --dart-define=KADR_RELAY_URL=https://217-114-0-201.sslip.io:8443
+      - name: Confirm Windows build exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path source/build/windows/x64/runner/Release/kadr.exe)) { throw 'Missing Windows executable' }
