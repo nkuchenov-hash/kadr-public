@@ -96,6 +96,9 @@ jobs:
             "sizeBytes": pathlib.Path("downloads/GOLOS-Setup.exe").stat().st_size,
             "publishedAt": os.environ["CREATED"],
             "channel": "preview",
+            "version": re.search(r"golos-v(\d+\.\d+\.\d+)", os.environ["TAG"]).group(1)
+              if re.search(r"golos-v(\d+\.\d+\.\d+)", os.environ["TAG"])
+              else ("0.1.1" if "607aaaec" in os.environ["ASSET"] else None),
           }
           pathlib.Path("golos/release.json").write_text(
               json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
@@ -114,5 +117,6 @@ jobs:
           fi
           git commit -m "Publish verified GOLOS Windows preview on site"
           git fetch origin main
-          git rebase origin/main
+          # New release wins if a concurrent site deployment touched release.json.
+          git rebase -X theirs origin/main
           git push origin HEAD:main
