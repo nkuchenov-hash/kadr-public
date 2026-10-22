@@ -96,9 +96,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             # Only compiler diagnostics, not source excerpts or entire private logs.
             # This allows fixing CI errors without exposing GOLOS code publicly.
-            $diagnostics = Get-Content "$env:RUNNER_TEMP/golos-rust-tests.log" |
-              Where-Object { $_ -match '^(error(\[E[0-9]+\])?: |\s*--> (src/|src-tauri/)|error: could not compile)' } |
-              Select-Object -Last 50
+            $allLines = @(Get-Content "$env:RUNNER_TEMP/golos-rust-tests.log")
+            $diagnostics = $allLines |
+              Where-Object { $_ -match '(?i)^\s*(error(\[E[0-9]+\])?:|Caused by:|thread .*panicked|= note:|--- stderr|--- stdout|cargo:warning=|failed to|Error during|could not|asset|icon|tauri-build)' } |
+              Select-Object -Last 70
             foreach ($line in $diagnostics) { Write-Host "RUST_DIAGNOSTIC: $line" }
             throw 'Rust Windows regression tests failed'
           }
