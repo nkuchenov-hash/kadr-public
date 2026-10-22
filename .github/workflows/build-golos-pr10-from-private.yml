@@ -93,7 +93,15 @@ jobs:
         run: |
           cd "$env:RUNNER_TEMP/GOLOS/src-tauri"
           cargo test --release --locked *> "$env:RUNNER_TEMP/golos-rust-tests.log"
-          if ($LASTEXITCODE -ne 0) { throw 'Rust Windows regression tests failed' }
+          if ($LASTEXITCODE -ne 0) {
+            # Only compiler diagnostics, not source excerpts or entire private logs.
+            # This allows fixing CI errors without exposing GOLOS code publicly.
+            $diagnostics = Get-Content "$env:RUNNER_TEMP/golos-rust-tests.log" |
+              Where-Object { $_ -match '^(error(\[E[0-9]+\])?: |\s*--> (src/|src-tauri/)|error: could not compile)' } |
+              Select-Object -Last 50
+            foreach ($line in $diagnostics) { Write-Host "RUST_DIAGNOSTIC: $line" }
+            throw 'Rust Windows regression tests failed'
+          }
       - name: Compile Windows installer
         shell: pwsh
         env:
