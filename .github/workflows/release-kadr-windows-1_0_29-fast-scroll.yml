@@ -24,6 +24,7 @@ jobs:
           ref: 71e0eb5751067ccd7ae8befd40560f28cd2a1aed
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
+          fetch-depth: 0
           path: source
       - name: Verify source provenance and visible Windows version
         shell: pwsh
