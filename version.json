@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.31",
+  "current_version": "1.0.32",
   "channel": "release-candidate",
   "release_date": "2026-10-23",
-  "published_at": "2026-10-23T19:08:48Z",
-  "source_commit": "f696ef71c697a33d818ebf56fc5fcd7c2774f208",
-  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/40007857037",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.31-rc",
+  "published_at": "2026-10-23T20:09:47.575239+00:00",
+  "source_commit": "3f1e78fe116519b4ce964c53b2e64bcb3810d6de",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/40016069391",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.32",
   "windows": {
-    "version": "1.0.31",
-    "build": 31,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.31-rc/KADR-Setup-1.0.31.exe",
-    "filename": "KADR-Setup-1.0.31.exe",
-    "size_bytes": 12773938,
-    "sha256": "5cdde914241c938a3edec0db515510db9474e2246066fcce7368e4681ea47069",
+    "version": "1.0.32",
+    "build": 32,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.32/KADR-Setup-1.0.32.exe",
+    "filename": "KADR-Setup-1.0.32.exe",
+    "size_bytes": 12814999,
+    "sha256": "aac804031943ebf0101d70f6fdbfb684e887327f5a5e6a280ba2cd2d8fcfc9b7",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -35,8 +35,9 @@
     "physical_recent_history": "not-verified",
     "physical_capture_after_screenshot": "not-verified",
     "physical_tray_responsiveness": "not-verified",
-    "desktop_shortcut_activation": "not-verified"
+    "desktop_shortcut_activation": "not-verified",
+    "physical_screencast": "not-verified"
   },
-  "notes": "Windows 1.0.31 RC: stable window reuse for tray popup, single-instance desktop shortcut opens main KADR menu, consent-based recovery for unresponsive process, async log writes and isolated large screenshot metadata/thumbnail decoding. Based on Windows 1.0.30 with PDF/long scrolling retained. Windows CI tests, accepted UI and capture editor guards, PDF/scroll tests and Release compilation passed; physical testing on both Windows PCs pending.",
+  "notes": "KADR Windows 1.0.32: AI Screencast with mic and desktop audio, pause, timestamp marks, keyframe storyboard, History and ZIP export. Based on Windows 1.0.31 stability RC. Automatic speech-to-text and physical A/V acceptance remain pending.",
   "current_version_scope": "windows"
 }
