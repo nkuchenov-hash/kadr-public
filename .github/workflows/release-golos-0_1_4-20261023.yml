@@ -54,8 +54,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: ${{ runner.temp }}/GOLOS/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
