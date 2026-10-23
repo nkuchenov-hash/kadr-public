@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: 83a5eb874dbf835361a8177e5e87e45db4ffd907
+      SOURCE_SHA: 3f1e78fe116519b4ce964c53b2e64bcb3810d6de
     steps:
       - uses: actions/checkout@v4
         with:
