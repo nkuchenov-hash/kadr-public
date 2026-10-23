@@ -1,0 +1,127 @@
+name: Build and publish GOLOS 0.1.4 fixed Windows installer
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/release-golos-0_1_4-20261023.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: golos-0-1-4-fixed-windows-release
+  cancel-in-progress: false
+
+jobs:
+  build-publish:
+    runs-on: windows-2022
+    timeout-minutes: 115
+    steps:
+      - name: Checkout public distribution website
+        uses: actions/checkout@v4
+      - name: Checkout latest fixed PRIVATE GOLOS source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/GOLOS
+          ref: fix/overlay-taskbar-transparency-20261023
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: private-golos
+          persist-credentials: false
+      - name: Verify exact source and release version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cd private-golos
+          $sha = (git rev-parse --short=8 HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sha.Length -ne 8) { throw 'Missing private source SHA' }
+          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          if ($config.version -ne '0.1.4') { throw 'Wrong private GOLOS version' }
+          $dirty = git status --porcelain
+          if ($dirty) { throw 'Private source checkout is not clean' }
+          "GOLOS_FIXED_SOURCE_SHA=$sha" >> $env:GITHUB_ENV
+          Write-Host "Private source revision $sha, release 0.1.4"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: private-golos/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: private-golos/src-tauri
+          cache-on-failure: true
+      - name: Verify frontend and architecture tests
+        shell: pwsh
+        working-directory: private-golos
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
+          npm run test:architecture
+          if ($LASTEXITCODE -ne 0) { throw 'Architecture tests failed' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
+      - name: Verify Rust on Windows
+        shell: pwsh
+        working-directory: private-golos/src-tauri
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cargo fmt --check
+          if ($LASTEXITCODE -ne 0) { throw 'Rust formatting check failed' }
+          cargo test --release --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
+      - name: Build NSIS installer
+        shell: pwsh
+        working-directory: private-golos
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run tauri build
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Tauri installer compilation failed' }
+      - name: Verify installer and publish to website
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setups = @(Get-ChildItem private-golos/src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' -File)
+          if ($setups.Count -ne 1) { throw "Expected one installer, found $($setups.Count)" }
+          $asset = "GOLOS_PR-11_$($env:GOLOS_FIXED_SOURCE_SHA)_x64-setup.exe"
+          Copy-Item $setups[0].FullName $asset -Force
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $asset).Path)
+          if ($bytes.Length -lt 5000000 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) {
+            throw 'Invalid or unexpectedly small Windows installer'
+          }
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          $tag = 'golos-v0.1.4-preview'
+          gh release create $tag $asset --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.1.4 Windows (overlay fix)" --notes "Windows release $($env:GOLOS_FIXED_SOURCE_SHA). Corrected taskbar placement and removed black rectangular background around overlay. Windows tests and installer build passed. Site SHA256: $hash" --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
+          New-Item -ItemType Directory -Force downloads | Out-Null
+          New-Item -ItemType Directory -Force golos | Out-Null
+          Copy-Item $asset downloads/GOLOS-Setup.exe -Force
+          "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
+          $info = @{
+            name = $asset
+            revision = $env:GOLOS_FIXED_SOURCE_SHA
+            sha256 = $hash
+            sizeBytes = $bytes.Length
+            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+            channel = 'preview'
+            version = '0.1.4'
+          }
+          $info | ConvertTo-Json | Set-Content -Encoding utf8 golos/release.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
+          git commit -m "Publish GOLOS 0.1.4 fixed Windows installer ($($env:GOLOS_FIXED_SOURCE_SHA))"
+          if ($LASTEXITCODE -ne 0) { throw 'Site commit failed' }
+          git pull --rebase origin main
+          if ($LASTEXITCODE -ne 0) { throw 'Site rebase failed' }
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Site push failed' }
+          Write-Host "PUBLISHED https://$($env:GITHUB_REPOSITORY_OWNER).github.io/kadr-public/golos/"
+          Write-Host "SHA256 $hash"
