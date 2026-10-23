@@ -1,0 +1,64 @@
+name: Validate KADR Screencast Windows
+on:
+  push:
+    paths:
+      - '.github/workflows/validate-kadr-screencast.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    env:
+      SOURCE_SHA: 26ac3ede2055cb16fd72eeae9075aa6179937a37
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ${{ env.SOURCE_SHA }}
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify exact private source
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong revision' }
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter packages
+        working-directory: source
+        run: flutter pub get
+      - name: Analyze
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Analysis failed' }
+      - name: Screencast and version contract tests
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/screencast_audio_contract_test.dart test/version_contract_test.dart test/video_hotkey_contract_test.dart test/history_recent_recovery_test.dart test/history_host_sync_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Screencast tests failed' }
+      - name: Build Windows
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows C++ compile failed' }
+      - name: Package setup
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup missing' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer missing' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screencast-win-setup-test
+          path: source/build/installer/KADR-Setup.exe
+          if-no-files-found: error
