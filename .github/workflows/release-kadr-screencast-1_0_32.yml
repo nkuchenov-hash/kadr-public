@@ -99,7 +99,7 @@ jobs:
                           release_date=datetime.now(timezone.utc).strftime('%Y-%m-%d'),
                           published_at=datetime.now(timezone.utc).isoformat(),
                           source_commit='3f1e78fe116519b4ce964c53b2e64bcb3810d6de',
-                          verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/40014155777',
+                          verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/' + __import__('os').environ['VALIDATED_RUN_ID'],
                           release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.32')
           manifest['windows'].update(
               version='1.0.32', build=32,
