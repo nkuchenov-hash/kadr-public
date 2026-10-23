@@ -6,7 +6,7 @@ on:
     types: [completed]
 permissions:
   contents: write
-  actions: read
+  actions: write
 concurrency:
   group: kadr-windows-latest-publication
   cancel-in-progress: false
@@ -61,3 +61,59 @@ jobs:
           set -euo pipefail
           gh release view windows-latest --json assets --repo "$GITHUB_REPOSITORY" | jq -e '.assets[] | select(.name == "KADR-Setup.exe" and .size > 10000000)'
           gh release view kadr-windows-1.0.32 --json assets --repo "$GITHUB_REPOSITORY" | jq -e '.assets[] | select(.name == "KADR-Setup-1.0.32.exe" and .size > 10000000)'
+
+      - name: Checkout public website source
+        uses: actions/checkout@v4
+        with:
+          path: website
+          persist-credentials: true
+      - name: Point website to exact published 1.0.32 installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          sha = hashlib.sha256(Path('KADR-Setup-1.0.32.exe').read_bytes()).hexdigest()
+          size = Path('KADR-Setup-1.0.32.exe').stat().st_size
+          root = Path('website')
+          old_url = 'kadr-windows-1.0.31-rc/KADR-Setup-1.0.31.exe'
+          new_url = 'kadr-windows-1.0.32/KADR-Setup-1.0.32.exe'
+          home = root / 'index.html'
+          html = home.read_text(encoding='utf-8')
+          if old_url not in html:
+              raise SystemExit('Expected existing KADR 1.0.31 download card was not found')
+          html = html.replace(old_url, new_url).replace('Windows 1.0.31 RC', 'Windows 1.0.32')
+          html = html.replace('v1.0.31', 'v1.0.32')
+          home.write_text(html, encoding='utf-8')
+          releases = root / 'releases/index.html'
+          journal = releases.read_text(encoding='utf-8')
+          journal = journal.replace('Windows 1.0.31 RC', 'Windows 1.0.32')
+          releases.write_text(journal, encoding='utf-8')
+          manifest_path = root / 'version.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          manifest.update(current_version='1.0.32',
+                          channel='release-candidate',
+                          release_date=datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+                          published_at=datetime.now(timezone.utc).isoformat(),
+                          source_commit='601c431893842d71b66238d6af27ba0b89a89179',
+                          verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/40014155777',
+                          release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.32')
+          manifest['windows'].update(
+              version='1.0.32', build=32,
+              download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/' + new_url,
+              filename='KADR-Setup-1.0.32.exe', size_bytes=size, sha256=sha)
+          manifest['validation']['windows_ci'] = 'passed'
+          manifest['validation']['physical_screencast'] = 'not-verified'
+          manifest['notes'] = 'KADR Windows 1.0.32: AI Screencast with mic and desktop audio, pause, timestamp marks, keyframe storyboard, History and ZIP export. Based on Windows 1.0.31 stability RC. Automatic speech-to-text and physical A/V acceptance remain pending.'
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+          git -C website config user.name "github-actions[bot]"
+          git -C website config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C website add index.html releases/index.html version.json
+          git -C website diff --cached --check
+          git -C website commit -m "site: publish verified KADR 1.0.32 Screencast setup and version manifest"
+          git -C website push origin HEAD:main
+          gh workflow run pages.yml --ref main --repo "$GITHUB_REPOSITORY"
