@@ -61,6 +61,35 @@ jobs:
         with:
           workspaces: ${{ runner.temp }}/GOLOS/src-tauri
           cache-on-failure: true
+      - name: Generate original GOLOS brand icons
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tools = "$env:RUNNER_TEMP/golos-icon-tools"
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          & npm install --prefix $tools --no-audit --no-fund --silent sharp png-to-ico@2.1.8 *> "$env:RUNNER_TEMP/golos-icon-install.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Icon dependencies unavailable' }
+          $source = "$env:RUNNER_TEMP/GOLOS/src/assets/golos-app-icon.svg"
+          $iconDir = "$env:RUNNER_TEMP/GOLOS/src-tauri/icons"
+          New-Item -ItemType Directory -Force $iconDir | Out-Null
+          $js = @'
+          const fs=require('fs');
+          const path=require('path');
+          const root=process.env.RUNNER_TEMP;
+          const sharp=require(path.join(root,'golos-icon-tools/node_modules/sharp'));
+          const pngToIco=require(path.join(root,'golos-icon-tools/node_modules/png-to-ico'));
+          const src=fs.readFileSync(path.join(root,'GOLOS/src/assets/golos-app-icon.svg'));
+          const out=path.join(root,'GOLOS/src-tauri/icons');
+          (async()=> {
+            const buffers=await Promise.all([16,32,48,64,128,256].map(n=>sharp(src).resize(n,n).png().toBuffer()));
+            fs.writeFileSync(path.join(out,'icon.png'),buffers[buffers.length-1]);
+            fs.writeFileSync(path.join(out,'icon.ico'),await pngToIco(buffers));
+          })().catch(()=>process.exit(1));
+          '@
+          $script="$tools/generate.cjs"
+          [System.IO.File]::WriteAllText($script,$js)
+          node $script *> "$env:RUNNER_TEMP/golos-icon-generate.log"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$iconDir/icon.ico")) { throw 'GOLOS brand icon generation failed' }
       - name: Verify frontend and architecture tests
         shell: pwsh
         working-directory: ${{ runner.temp }}/GOLOS
