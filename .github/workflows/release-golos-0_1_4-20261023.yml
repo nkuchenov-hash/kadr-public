@@ -116,7 +116,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
       - name: Build NSIS installer
         shell: pwsh
-        working-directory: private-golos
+        working-directory: ${{ runner.temp }}/GOLOS
         run: |
           $ErrorActionPreference = 'Stop'
           npm run tauri build
