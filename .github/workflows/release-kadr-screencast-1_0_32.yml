@@ -1,0 +1,63 @@
+name: Publish verified KADR 1.0.32 Screencast
+on:
+  workflow_run:
+    workflows:
+      - Validate KADR Screencast Windows
+    types: [completed]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: kadr-windows-latest-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VALIDATED_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - name: Download exact validated setup artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$VALIDATED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name screencast-win-setup-test --dir validated
+          test -f validated/KADR-Setup.exe
+          test "$(stat -c%s validated/KADR-Setup.exe)" -gt 10000000
+          cp validated/KADR-Setup.exe KADR-Setup.exe
+          sha256sum KADR-Setup.exe > KADR-Setup.sha256
+          cp KADR-Setup.exe KADR-Setup-1.0.32.exe
+          sha256sum KADR-Setup-1.0.32.exe > KADR-Setup-1.0.32.sha256
+      - name: Publish KADR 1.0.32 versioned release and website latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          # KADR Windows 1.0.32 — Screencast for AI
+          RU: Запись области экрана MP4 со звуком микрофона и системы, курсором, паузой, метками и кнопкой «Стоп». История видео, ключевые кадры с таймкодами, локальный HTML-отчёт (печать в PDF) и ZIP с MP4/контекстом для ИИ.
+          Сборка основана на KADR 1.0.31 (исправления истории, трея и длинных скриншотов сохранены). Автоматическая транскрипция речи пока не включена.
+          EN: Region MP4 screencast with optional mic/desktop sound, pause, markers, History integration, AI review frames, printable HTML storyboard and local ZIP export. Built over 1.0.31 stability fixes. No automatic speech transcription yet.
+          CI: Windows Flutter analysis, regression tests, native C++ release build, installer packaging and artifact verification passed. On-device A/V acceptance remains necessary.
+          Private source revision: 601c431893842d71b66238d6af27ba0b89a89179
+          NOTES
+          tag="kadr-windows-1.0.32"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" KADR-Setup-1.0.32.exe KADR-Setup-1.0.32.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" KADR-Setup-1.0.32.exe KADR-Setup-1.0.32.sha256 --title "KADR Windows 1.0.32 — AI Screencast" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
+          fi
+          if gh release view windows-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload windows-latest KADR-Setup.exe KADR-Setup.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit windows-latest --title "KADR Windows 1.0.32 — AI Screencast" --notes-file release-notes.md --latest --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create windows-latest KADR-Setup.exe KADR-Setup.sha256 --title "KADR Windows 1.0.32 — AI Screencast" --notes-file release-notes.md --latest --repo "$GITHUB_REPOSITORY"
+          fi
+      - name: Confirm published setup and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view windows-latest --json assets --repo "$GITHUB_REPOSITORY" | jq -e '.assets[] | select(.name == "KADR-Setup.exe" and .size > 10000000)'
+          gh release view kadr-windows-1.0.32 --json assets --repo "$GITHUB_REPOSITORY" | jq -e '.assets[] | select(.name == "KADR-Setup-1.0.32.exe" and .size > 10000000)'
