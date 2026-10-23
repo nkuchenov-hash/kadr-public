@@ -1,0 +1,127 @@
+name: Build KADR Windows 1.0.31 stability RC
+on:
+  push:
+    paths: ['.github/workflows/build-kadr-windows-1_0_31-stability.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: kadr-windows-stability-1-0-31
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      SOURCE_SHA: f696ef71c697a33d818ebf56fc5fcd7c2774f208
+      KADR_RELAY_URL: https://217-114-0-201.sslip.io:8443
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact private KADR 1.0.31 RC
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: f696ef71c697a33d818ebf56fc5fcd7c2774f208
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: source
+      - name: Verify source SHA and 1.0.31 version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong source revision' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.31\+31')) { throw 'Wrong Flutter version' }
+          if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.31'")) { throw 'Wrong visible version' }
+          if (-not (Test-Path source/lib/core/services/manual_scroll_export_service.dart)) { throw 'PDF export was lost' }
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - name: Resolve packages
+        working-directory: source
+        run: flutter pub get
+      - name: Analyze code for errors
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter analyze failed' }
+      - name: Regression tests for launch, tray, image and history
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/image_dimensions_test.dart test/launch_and_capture_responsiveness_contract_test.dart test/tray_recovery_after_capture_test.dart test/tray_stale_capture_recovery_test.dart test/history_recent_recovery_test.dart test/history_host_sync_test.dart test/history_persistence_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Windows stability regressions failed' }
+      - name: Guard protected editor and accepted UI
+        working-directory: source
+        shell: pwsh
+        run: |
+          ./tool/verify_capture_editor_lock.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Capture editor guard failed' }
+          ./tool/verify_working_ui_baseline.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Working UI baseline guard failed' }
+          flutter test test/capture_editor_locked_contract_test.dart test/p0_native_region_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Capture regression test failed' }
+      - name: Verify long scrolling and PDF export
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/manual_scroll_capture_test.dart test/manual_scroll_export_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'PDF/long scrolling regression failed' }
+      - name: Build exact Windows Release
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_RELAY_URL=$env:KADR_RELAY_URL" "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compilation failed' }
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          if (-not (Test-Path $exe)) { throw 'Missing KADR executable' }
+          $ver = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $ver.StartsWith('1.0.31')) { throw "Wrong exe version $ver" }
+      - name: Package 1.0.31 setup
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup missing' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer build failed' }
+      - name: Publish versioned installer after successful checks
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.31.exe
+          $sha256 = (Get-FileHash KADR-Setup-1.0.31.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha256  KADR-Setup-1.0.31.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          @'
+          EN
+
+          # KADR Windows 1.0.31 RC — Responsive after every screenshot
+
+          Opening KADR from the Desktop or Start Menu now opens the normal KADR menu even if the application is already running. Silent startup remains silent.
+          The tray popup reuses its window and no longer pumps a nested Windows message loop. Large screenshot metadata and thumbnails are processed without blocking the UI thread, and screenshot log writes no longer synchronously flush the disk.
+          When the running process does not respond, a manual launch asks permission before restarting it. Previously saved screenshots remain on disk.
+
+          Built from the 1.0.30 PDF/continuous long-scrolling baseline; existing PNG/PDF options are preserved.
+          Windows CI analysis, regression tests, editor protection tests, long-scroll/PDF tests and Release compilation passed. Physical Windows acceptance on both affected PCs still needs confirmation.
+          Source SHA: f696ef71c697a33d818ebf56fc5fcd7c2774f208
+
+          RU
+
+          # КАДР Windows 1.0.31 RC — стабильность после скриншотов
+
+          Запуск через ярлык теперь открывает меню КАДР, даже если приложение уже запущено. Автозапуск Windows остаётся скрытым.
+          Меню трея повторно использует окно без вложенного цикла сообщений. Обработка крупных скриншотов и миниатюр больше не должна блокировать интерфейс. Запись логов не заставляет интерфейс ждать диск.
+          Если программа перестала отвечать, повторный запуск предлагает перезапуск с подтверждением. Уже сохранённые файлы не удаляются.
+
+          Версия построена поверх 1.0.30 с сохранением PDF и непрерывных длинных скриншотов.
+          Автоматические проверки и компиляция Windows пройдены. Проверка на двух реальных ПК ещё требуется.
+          Исходный коммит: f696ef71c697a33d818ebf56fc5fcd7c2774f208
+          '@ | Set-Content -Encoding utf8 release-notes.md
+          gh release create kadr-windows-1.0.31-rc KADR-Setup-1.0.31.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title 'KADR Windows 1.0.31 RC — Stability and Fast Tray' --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }
+      - name: Verify public asset
+        shell: pwsh
+        run: |
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/kadr-windows-1.0.31-rc" | ConvertFrom-Json
+          $asset = $release.assets | Where-Object { $_.name -eq 'KADR-Setup-1.0.31.exe' }
+          if (-not $asset -or $asset.size -lt 10000000) { throw 'Published installer missing' }
+          Write-Host "KADR_WINDOWS_1_0_31_RC_READY size=$($asset.size) SHA256=$sha256"
