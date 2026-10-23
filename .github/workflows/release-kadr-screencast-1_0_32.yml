@@ -40,7 +40,7 @@ jobs:
           Сборка основана на KADR 1.0.31 (исправления истории, трея и длинных скриншотов сохранены). Автоматическая транскрипция речи пока не включена.
           EN: Region MP4 screencast with optional mic/desktop sound, pause, markers, History integration, AI review frames, printable HTML storyboard and local ZIP export. Built over 1.0.31 stability fixes. No automatic speech transcription yet.
           CI: Windows Flutter analysis, regression tests, native C++ release build, installer packaging and artifact verification passed. On-device A/V acceptance remains necessary.
-          Private source revision: 83a5eb874dbf835361a8177e5e87e45db4ffd907
+          Private source revision: 3f1e78fe116519b4ce964c53b2e64bcb3810d6de
           NOTES
           tag="kadr-windows-1.0.32"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -98,7 +98,7 @@ jobs:
                           channel='release-candidate',
                           release_date=datetime.now(timezone.utc).strftime('%Y-%m-%d'),
                           published_at=datetime.now(timezone.utc).isoformat(),
-                          source_commit='83a5eb874dbf835361a8177e5e87e45db4ffd907',
+                          source_commit='3f1e78fe116519b4ce964c53b2e64bcb3810d6de',
                           verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/40014155777',
                           release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.32')
           manifest['windows'].update(
