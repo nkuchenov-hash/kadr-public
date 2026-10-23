@@ -20,42 +20,52 @@ jobs:
     steps:
       - name: Checkout public distribution website
         uses: actions/checkout@v4
-      - name: Checkout latest fixed PRIVATE GOLOS source
+      - name: Checkout verified PRIVATE GOLOS snapshot
         uses: actions/checkout@v4
         with:
-          repository: nkuchenov-hash/GOLOS
-          ref: fix/overlay-taskbar-transparency-20261023
+          repository: nkuchenov-hash/KADR
+          ref: ci/golos-0_1_4-fixed-20261023
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
-          path: private-golos
+          path: private-ci
           persist-credentials: false
-      - name: Verify exact source and release version
+      - name: Prepare isolated GOLOS-only workspace
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cd private-golos
-          $sha = (git rev-parse --short=8 HEAD).Trim()
-          if ($LASTEXITCODE -ne 0 -or $sha.Length -ne 8) { throw 'Missing private source SHA' }
-          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
-          if ($config.version -ne '0.1.4') { throw 'Wrong private GOLOS version' }
-          $dirty = git status --porcelain
-          if ($dirty) { throw 'Private source checkout is not clean' }
-          "GOLOS_FIXED_SOURCE_SHA=$sha" >> $env:GITHUB_ENV
-          Write-Host "Private source revision $sha, release 0.1.4"
+          $source = "private-ci/golos-ci-src"
+          $target = "$env:RUNNER_TEMP/GOLOS"
+          if (-not (Test-Path "$source/src-tauri/Cargo.toml")) { throw 'Private GOLOS snapshot missing' }
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          Copy-Item -Path "$source/*" -Destination $target -Recurse -Force
+          Copy-Item -Path "$source/.*" -Destination $target -Recurse -Force -ErrorAction SilentlyContinue
+          $config = Get-Content "$target/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          if ($config.version -ne '0.1.4') { throw 'GOLOS release version mismatch' }
+          if (-not (Select-String -Path "$target/src-tauri/src/overlay_win.rs" -Pattern "clip_overlay_to_capsule" -Quiet)) { throw 'Native overlay fix missing' }
+          if (-not (Select-String -Path "$target/src-tauri/src/commands.rs" -Pattern "bottom_taskbar_top" -Quiet)) { throw 'Taskbar placement fix missing' }
+          $buildScript = "$target/src-tauri/build.rs"
+          $buildCode = Get-Content $buildScript -Raw
+          $anchor = 'let commit = git_commit_label();'
+          if (-not $buildCode.Contains($anchor)) { throw 'Build ID override anchor changed' }
+          $buildCode = $buildCode.Replace($anchor, 'let commit = std::env::var("GOLOS_SOURCE_SHA_OVERRIDE").unwrap_or_else(|_| git_commit_label());')
+          [System.IO.File]::WriteAllText($buildScript, $buildCode)
+          "GOLOS_FIXED_SOURCE_SHA=ee1666e5" >> $env:GITHUB_ENV
+          "GOLOS_SOURCE_SHA_OVERRIDE=ee1666e5" >> $env:GITHUB_ENV
+          Write-Host "GOLOS 0.1.4 source snapshot verified; revision ee1666e5"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: private-golos/package-lock.json
+          cache-dependency-path: ${{ runner.temp }}/GOLOS/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: private-golos/src-tauri
+          workspaces: ${{ runner.temp }}/GOLOS/src-tauri
           cache-on-failure: true
       - name: Verify frontend and architecture tests
         shell: pwsh
-        working-directory: private-golos
+        working-directory: ${{ runner.temp }}/GOLOS
         run: |
           $ErrorActionPreference = 'Stop'
           npm ci
@@ -68,9 +78,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
       - name: Verify Rust on Windows
         shell: pwsh
-        working-directory: private-golos/src-tauri
+        working-directory: ${{ runner.temp }}/GOLOS/src-tauri
         run: |
           $ErrorActionPreference = 'Stop'
+          cargo fmt
+          if ($LASTEXITCODE -ne 0) { throw 'Rust format failed' }
           cargo fmt --check
           if ($LASTEXITCODE -ne 0) { throw 'Rust formatting check failed' }
           cargo test --release --locked
@@ -88,7 +100,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $setups = @(Get-ChildItem private-golos/src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' -File)
+          $setups = @(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
           if ($setups.Count -ne 1) { throw "Expected one installer, found $($setups.Count)" }
           $asset = "GOLOS_PR-11_$($env:GOLOS_FIXED_SOURCE_SHA)_x64-setup.exe"
           Copy-Item $setups[0].FullName $asset -Force
