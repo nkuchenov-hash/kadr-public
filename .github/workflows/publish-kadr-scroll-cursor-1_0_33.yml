@@ -1,0 +1,117 @@
+name: Publish KADR 1.0.33 scroll cursor fix
+on:
+  workflow_run:
+    workflows:
+      - Validate KADR 1.0.33 scroll cursor
+    types: [completed]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: kadr-windows-latest-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VALIDATED_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - name: Download verified Windows setup only
+        run: |
+          set -euo pipefail
+          gh run download "$VALIDATED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name kadr-1-0-33-validated-windows-setup --dir verified
+          test -f verified/KADR-Setup.exe
+          test "$(stat -c%s verified/KADR-Setup.exe)" -gt 10000000
+          cp verified/KADR-Setup.exe KADR-Setup.exe
+          cp verified/KADR-Setup.exe KADR-Setup-1.0.33.exe
+          sha256sum KADR-Setup.exe > KADR-Setup.sha256
+          sha256sum KADR-Setup-1.0.33.exe > KADR-Setup-1.0.33.sha256
+      - name: Publish numbered and latest releases
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          ## RU — KADR 1.0.33: курсор больше не блокирует длинный скриншот
+          
+          Исправлена прокрутка чата: КАДР больше не удерживает системный указатель в выделенной области. Прокрутка отправляется непосредственно целевому окну; если требуется аппаратный ввод колёсика, исходная позиция курсора восстанавливается после шага. При переходе к панели управления курсор не захватывается.
+          
+          «Стоп» и «Отмена» остаются доступны во время сканирования. Сохранены все функции KADR 1.0.32: длинные скриншоты PNG/PDF, история, трей, редактор, Screencast для ИИ.
+          
+          Автоматические тесты, проверка редактора, анализ Flutter и компиляция Windows пройдены. Тестирование на реальном ПК с конкретным чатом необходимо для проверки совместимости методов прокрутки.
+          
+          ## EN — KADR 1.0.33: long-capture pointer control fix
+          
+          Long screenshots no longer park the system mouse pointer inside the selected chat. Targeted wheel input does not move the pointer; optional hardware-wheel fallback restores its position after each step, preserving access to Stop and Cancel.
+          
+          All 1.0.32 screenshot, PDF, History, tray, editor and AI Screencast features are retained. Automated tests and Windows release packaging passed; real-chat device behavior has not yet been verified.
+          
+          Private source: 08f466c6bf293fedc75bbe0129d64cd281632607
+          NOTES
+          if gh release view kadr-windows-1.0.33 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload kadr-windows-1.0.33 KADR-Setup-1.0.33.exe KADR-Setup-1.0.33.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit kadr-windows-1.0.33 --title "KADR Windows 1.0.33 — Long Screenshot Cursor Fix" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create kadr-windows-1.0.33 KADR-Setup-1.0.33.exe KADR-Setup-1.0.33.sha256 --title "KADR Windows 1.0.33 — Long Screenshot Cursor Fix" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
+          fi
+          gh release upload windows-latest KADR-Setup.exe KADR-Setup.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit windows-latest --title "KADR Windows 1.0.33 — Long Screenshot Cursor Fix" --notes-file release-notes.md --latest --repo "$GITHUB_REPOSITORY"
+      - name: Verify published assets
+        run: |
+          set -euo pipefail
+          gh release view kadr-windows-1.0.33 --json assets --repo "$GITHUB_REPOSITORY" |
+            jq -e '.assets[] | select(.name=="KADR-Setup-1.0.33.exe" and .size>10000000)'
+          gh release view windows-latest --json assets --repo "$GITHUB_REPOSITORY" |
+            jq -e '.assets[] | select(.name=="KADR-Setup.exe" and .size>10000000)'
+      - uses: actions/checkout@v4
+        with:
+          path: website
+          persist-credentials: true
+      - name: Update website download, release journal and manifest
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          root = Path('website')
+          installer = Path('KADR-Setup-1.0.33.exe')
+          digest = hashlib.sha256(installer.read_bytes()).hexdigest()
+          size = installer.stat().st_size
+          old = 'kadr-windows-1.0.32/KADR-Setup-1.0.32.exe'
+          new = 'kadr-windows-1.0.33/KADR-Setup-1.0.33.exe'
+          for relative in ('index.html', 'releases/index.html'):
+              f = root / relative
+              html = f.read_text(encoding='utf-8')
+              if relative == 'index.html' and old not in html:
+                  raise SystemExit('Existing 1.0.32 download link not found; refusing overwrite')
+              html = html.replace(old,new).replace('Windows 1.0.32', 'Windows 1.0.33')
+              html = html.replace('v1.0.32', 'v1.0.33')
+              f.write_text(html,encoding='utf-8')
+          manifest_path = root/'version.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          manifest.update(
+              current_version='1.0.33',
+              channel='release-candidate',
+              release_date=datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+              published_at=datetime.now(timezone.utc).isoformat(),
+              source_commit='08f466c6bf293fedc75bbe0129d64cd281632607',
+              verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/'+os.environ['VALIDATED_RUN_ID'],
+              release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.33')
+          manifest['windows'].update(
+              version='1.0.33',build=33,
+              download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
+              filename='KADR-Setup-1.0.33.exe',
+              size_bytes=size,sha256=digest)
+          manifest['validation']['windows_ci']='passed'
+          manifest['validation']['physical_long_scroll_cursor']='not-verified'
+          manifest['notes']='Windows 1.0.33 restores pointer control during continuous long screenshots. Existing 1.0.32 PDF, screenshot editor, History, tray and AI Screencast features retained. Windows build and automated regression tests passed; physical device acceptance pending.'
+          manifest_path.write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          PY
+          git -C website config user.name "github-actions[bot]"
+          git -C website config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C website add index.html releases/index.html version.json
+          git -C website diff --cached --check
+          git -C website commit -m "site: publish verified KADR 1.0.33 cursor fix"
+          git -C website push origin HEAD:main
