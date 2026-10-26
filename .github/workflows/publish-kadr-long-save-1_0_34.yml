@@ -1,0 +1,118 @@
+name: Publish KADR 1.0.34 smart PDF and progress
+on:
+  workflow_run:
+    workflows:
+      - Validate KADR 1.0.34 save and smart PDF
+    types: [completed]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: kadr-windows-latest-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VALIDATED_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - name: Download verified Windows setup only
+        run: |
+          set -euo pipefail
+          gh run download "$VALIDATED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name kadr-1-0-34-validated-windows-setup --dir verified
+          test -f verified/KADR-Setup.exe
+          test "$(stat -c%s verified/KADR-Setup.exe)" -gt 10000000
+          cp verified/KADR-Setup.exe KADR-Setup.exe
+          cp verified/KADR-Setup.exe KADR-Setup-1.0.34.exe
+          sha256sum KADR-Setup.exe > KADR-Setup.sha256
+          sha256sum KADR-Setup-1.0.34.exe > KADR-Setup-1.0.34.sha256
+      - name: Publish numbered and latest releases
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          ## RU — KADR 1.0.34: сохранение с прогрессом, умная разбивка PDF
+
+          Длинные скриншоты теперь показывают реальный прогресс: процент, текущий этап и заполняющуюся полосу на панели записи. Для PDF отображается обработанная страница, для PNG — номер сохраняемой части. Прогресс увеличивается по мере завершения записи частей, а не по таймеру.
+
+          PDF теперь по умолчанию ищет безопасные светлые промежутки между сообщениями, чтобы не разрезать текст и изображения на границах A4. При отсутствии подходящего промежутка остаётся точное деление по A4, без пропуска и дублирования строк. Переключатель «Длинный скриншот: не разрывать сообщения в PDF» находится в настройках захвата.
+
+          Исправление курсора KADR 1.0.33, снимки PNG/PDF, History, tray и AI Screencast сохранены. PDF остаётся растровым; распознавание текста не включено. Физическое тестирование в конкретном чате ещё необходимо.
+
+          ## EN — KADR 1.0.34: real save progress and smart PDF breaks
+
+          Long capture shows actual save percentage, current PDF page / PNG part and a native progress bar. Smart A4 pagination prefers blank separators between chat messages and photos; it falls back to exact A4 when no clean break exists, without dropping image rows. Toggle smart breaks in capture settings. All 1.0.33 pointer-control and 1.0.32 AI Screencast features remain.
+
+          Windows analysis, automated regression tests, guarded editor baseline, native build and installer packaging are required to publish. PDF is image-only and physical acceptance remains pending.
+
+          Private source: 58996dd933ab46bb2b8d859577c2d675421811d7
+          NOTES
+          if gh release view kadr-windows-1.0.34 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload kadr-windows-1.0.34 KADR-Setup-1.0.34.exe KADR-Setup-1.0.34.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit kadr-windows-1.0.34 --title "KADR Windows 1.0.34 — Long Screenshot Smart PDF and Save Progress" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create kadr-windows-1.0.34 KADR-Setup-1.0.34.exe KADR-Setup-1.0.34.sha256 --title "KADR Windows 1.0.34 — Long Screenshot Smart PDF and Save Progress" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
+          fi
+          gh release upload windows-latest KADR-Setup.exe KADR-Setup.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit windows-latest --title "KADR Windows 1.0.34 — Long Screenshot Smart PDF and Save Progress" --notes-file release-notes.md --latest --repo "$GITHUB_REPOSITORY"
+      - name: Verify published assets
+        run: |
+          set -euo pipefail
+          gh release view kadr-windows-1.0.34 --json assets --repo "$GITHUB_REPOSITORY" |
+            jq -e '.assets[] | select(.name=="KADR-Setup-1.0.34.exe" and .size>10000000)'
+          gh release view windows-latest --json assets --repo "$GITHUB_REPOSITORY" |
+            jq -e '.assets[] | select(.name=="KADR-Setup.exe" and .size>10000000)'
+      - uses: actions/checkout@v4
+        with:
+          path: website
+          persist-credentials: true
+      - name: Update website download, release journal and manifest
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          root = Path('website')
+          installer = Path('KADR-Setup-1.0.34.exe')
+          digest = hashlib.sha256(installer.read_bytes()).hexdigest()
+          size = installer.stat().st_size
+          old = 'kadr-windows-1.0.33/KADR-Setup-1.0.33.exe'
+          new = 'kadr-windows-1.0.34/KADR-Setup-1.0.34.exe'
+          for relative in ('index.html', 'releases/index.html'):
+              f = root / relative
+              html = f.read_text(encoding='utf-8')
+              if relative == 'index.html' and old not in html:
+                  raise SystemExit('Existing 1.0.32 download link not found; refusing overwrite')
+              html = html.replace(old,new).replace('Windows 1.0.32', 'Windows 1.0.34')
+              html = html.replace('v1.0.32', 'v1.0.34')
+              f.write_text(html,encoding='utf-8')
+          manifest_path = root/'version.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          manifest.update(
+              current_version='1.0.34',
+              channel='release-candidate',
+              release_date=datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+              published_at=datetime.now(timezone.utc).isoformat(),
+              source_commit='58996dd933ab46bb2b8d859577c2d675421811d7',
+              verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/'+os.environ['VALIDATED_RUN_ID'],
+              release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.34')
+          manifest['windows'].update(
+              version='1.0.34',build=33,
+              download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
+              filename='KADR-Setup-1.0.34.exe',
+              size_bytes=size,sha256=digest)
+          manifest['validation']['windows_ci']='passed'
+          manifest['validation']['physical_long_scroll_cursor']='not-verified'
+          manifest['validation']['physical_smart_pdf_pagination']='not-verified'
+          manifest['notes']='Windows 1.0.34: percentage and native progress bar during long PNG/PDF save, smart A4 page breaks to avoid splitting messages when possible; KADR 1.0.33 cursor fix and previous features retained. Physical device acceptance pending.'
+          manifest_path.write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          PY
+          git -C website config user.name "github-actions[bot]"
+          git -C website config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C website add index.html releases/index.html version.json
+          git -C website diff --cached --check
+          git -C website commit -m "site: publish verified KADR 1.0.34 cursor fix"
+          git -C website push origin HEAD:main
