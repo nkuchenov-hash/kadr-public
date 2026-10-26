@@ -19,6 +19,8 @@ jobs:
           ref: ${{ env.SOURCE_SHA }}
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
           path: source
       - name: Verify exact private source and version
         shell: pwsh
