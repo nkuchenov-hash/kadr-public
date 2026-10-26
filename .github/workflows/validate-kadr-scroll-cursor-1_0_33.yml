@@ -1,0 +1,78 @@
+name: Validate KADR 1.0.33 scroll cursor
+on:
+  push:
+    paths:
+      - '.github/workflows/validate-kadr-scroll-cursor-1_0_33.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    env:
+      SOURCE_SHA: 08f466c6bf293fedc75bbe0129d64cd281632607
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ${{ env.SOURCE_SHA }}
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify exact private source and version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Unexpected source SHA' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.33\+33')) { throw 'Wrong 1.0.33 version' }
+          if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.33'")) { throw 'Wrong About version' }
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Flutter analysis
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter analyze failed' }
+      - name: Scroll, cursor safety, saving, history and version tests
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/manual_scroll_capture_test.dart test/manual_scroll_export_test.dart test/version_contract_test.dart test/history_recent_recovery_test.dart test/history_host_sync_test.dart test/tray_recovery_after_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Regression tests failed' }
+      - name: Preserve capture editor and working UI
+        working-directory: source
+        shell: pwsh
+        run: |
+          ./tool/verify_capture_editor_lock.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Capture editor guard failed' }
+          ./tool/verify_working_ui_baseline.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Working UI baseline guard failed' }
+      - name: Compile Windows Release
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows build failed' }
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          if (-not (Test-Path $exe)) { throw 'KADR executable missing' }
+          $version = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $version.StartsWith('1.0.33')) { throw "Wrong executable version: $version" }
+      - name: Package Inno Setup
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup unavailable' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Installer build failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kadr-1-0-33-validated-windows-setup
+          path: source/build/installer/KADR-Setup.exe
+          if-no-files-found: error
