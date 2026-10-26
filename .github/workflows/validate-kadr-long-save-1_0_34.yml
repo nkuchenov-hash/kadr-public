@@ -2,7 +2,7 @@ name: Validate KADR 1.0.34 save and smart PDF
 on:
   push:
     paths:
-      - '.github/workflows/validate-kadr-scroll-cursor-1_0_34.yml'
+      - '.github/workflows/validate-kadr-long-save-1_0_34.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,7 +26,7 @@ jobs:
         shell: pwsh
         run: |
           if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Unexpected source SHA' }
-          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.34\+33')) { throw 'Wrong 1.0.34 version' }
+          if (-not ((Get-Content source/pubspec.yaml -Raw) -match 'version: 1\.0\.34\+34')) { throw 'Wrong 1.0.34 version' }
           if (-not ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -match "version = '1\.0\.34'")) { throw 'Wrong About version' }
       - uses: subosito/flutter-action@v2
         with:
