@@ -85,9 +85,9 @@ jobs:
               f = root / relative
               html = f.read_text(encoding='utf-8')
               if relative == 'index.html' and old not in html:
-                  raise SystemExit('Existing 1.0.32 download link not found; refusing overwrite')
-              html = html.replace(old,new).replace('Windows 1.0.32', 'Windows 1.0.34')
-              html = html.replace('v1.0.32', 'v1.0.34')
+                  raise SystemExit('Existing 1.0.33 download link not found; refusing overwrite')
+              html = html.replace(old,new).replace('Windows 1.0.33', 'Windows 1.0.34')
+              html = html.replace('v1.0.33', 'v1.0.34')
               f.write_text(html,encoding='utf-8')
           manifest_path = root/'version.json'
           manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
@@ -100,7 +100,7 @@ jobs:
               verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/'+os.environ['VALIDATED_RUN_ID'],
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.34')
           manifest['windows'].update(
-              version='1.0.34',build=33,
+              version='1.0.34',build=34,
               download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
               filename='KADR-Setup-1.0.34.exe',
               size_bytes=size,sha256=digest)
@@ -114,5 +114,5 @@ jobs:
           git -C website config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C website add index.html releases/index.html version.json
           git -C website diff --cached --check
-          git -C website commit -m "site: publish verified KADR 1.0.34 cursor fix"
+          git -C website commit -m "site: publish verified KADR 1.0.34 smart PDF and save progress"
           git -C website push origin HEAD:main
