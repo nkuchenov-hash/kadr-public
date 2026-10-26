@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.33",
+  "current_version": "1.0.34",
   "channel": "release-candidate",
   "release_date": "2026-10-26",
-  "published_at": "2026-10-26T10:53:39.347105+00:00",
-  "source_commit": "08f466c6bf293fedc75bbe0129d64cd281632607",
-  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/40309959908",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.33",
+  "published_at": "2026-10-26T11:09:58.397608+00:00",
+  "source_commit": "c7ff2fedd8048dfec845483778557ac8068734b8",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/40311993873",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.34",
   "windows": {
-    "version": "1.0.33",
-    "build": 33,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.33/KADR-Setup-1.0.33.exe",
-    "filename": "KADR-Setup-1.0.33.exe",
-    "size_bytes": 12813254,
-    "sha256": "8d9555c1270f4c8ed5419fe802f5114be1f09069aa93980ab40472d0dbe53061",
+    "version": "1.0.34",
+    "build": 34,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.34/KADR-Setup-1.0.34.exe",
+    "filename": "KADR-Setup-1.0.34.exe",
+    "size_bytes": 12819043,
+    "sha256": "3d24355ea8b22ad3eef5a04a3b3d6d342f796fc6276a7e8e21677a023bd01c1a",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -37,8 +37,9 @@
     "physical_tray_responsiveness": "not-verified",
     "desktop_shortcut_activation": "not-verified",
     "physical_screencast": "not-verified",
-    "physical_long_scroll_cursor": "not-verified"
+    "physical_long_scroll_cursor": "not-verified",
+    "physical_smart_pdf_pagination": "not-verified"
   },
-  "notes": "Windows 1.0.33 restores pointer control during continuous long screenshots. Existing 1.0.32 PDF, screenshot editor, History, tray and AI Screencast features retained. Windows build and automated regression tests passed; physical device acceptance pending.",
+  "notes": "Windows 1.0.34: percentage and native progress bar during long PNG/PDF save, smart A4 page breaks to avoid splitting messages when possible; KADR 1.0.33 cursor fix and previous features retained. Physical device acceptance pending.",
   "current_version_scope": "windows"
 }
