@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.32",
+  "current_version": "1.0.33",
   "channel": "release-candidate",
-  "release_date": "2026-10-23",
-  "published_at": "2026-10-23T20:09:47.575239+00:00",
-  "source_commit": "3f1e78fe116519b4ce964c53b2e64bcb3810d6de",
-  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/40016069391",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.32",
+  "release_date": "2026-10-26",
+  "published_at": "2026-10-26T10:53:39.347105+00:00",
+  "source_commit": "08f466c6bf293fedc75bbe0129d64cd281632607",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/40309959908",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.33",
   "windows": {
-    "version": "1.0.32",
-    "build": 32,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.32/KADR-Setup-1.0.32.exe",
-    "filename": "KADR-Setup-1.0.32.exe",
-    "size_bytes": 12814999,
-    "sha256": "aac804031943ebf0101d70f6fdbfb684e887327f5a5e6a280ba2cd2d8fcfc9b7",
+    "version": "1.0.33",
+    "build": 33,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.33/KADR-Setup-1.0.33.exe",
+    "filename": "KADR-Setup-1.0.33.exe",
+    "size_bytes": 12813254,
+    "sha256": "8d9555c1270f4c8ed5419fe802f5114be1f09069aa93980ab40472d0dbe53061",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -36,8 +36,9 @@
     "physical_capture_after_screenshot": "not-verified",
     "physical_tray_responsiveness": "not-verified",
     "desktop_shortcut_activation": "not-verified",
-    "physical_screencast": "not-verified"
+    "physical_screencast": "not-verified",
+    "physical_long_scroll_cursor": "not-verified"
   },
-  "notes": "KADR Windows 1.0.32: AI Screencast with mic and desktop audio, pause, timestamp marks, keyframe storyboard, History and ZIP export. Based on Windows 1.0.31 stability RC. Automatic speech-to-text and physical A/V acceptance remain pending.",
+  "notes": "Windows 1.0.33 restores pointer control during continuous long screenshots. Existing 1.0.32 PDF, screenshot editor, History, tray and AI Screencast features retained. Windows build and automated regression tests passed; physical device acceptance pending.",
   "current_version_scope": "windows"
 }
