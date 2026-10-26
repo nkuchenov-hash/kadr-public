@@ -27,6 +27,23 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Guard Windows download link and version manifest
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('version.json').read_text(encoding='utf-8'))
+          html = Path('index.html').read_text(encoding='utf-8')
+          url = manifest['windows']['download_url']
+          version = manifest['windows']['version']
+          if url not in html:
+              raise SystemExit('Website link does not match released Windows setup')
+          if version not in html:
+              raise SystemExit('Current Windows version missing from homepage')
+          if not manifest['windows']['sha256']:
+              raise SystemExit('No installer checksum in manifest')
+          PY
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
