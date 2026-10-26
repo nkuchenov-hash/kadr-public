@@ -47,7 +47,7 @@ jobs:
 
           Windows analysis, automated regression tests, guarded editor baseline, native build and installer packaging are required to publish. PDF is image-only and physical acceptance remains pending.
 
-          Private source: 58996dd933ab46bb2b8d859577c2d675421811d7
+          Private source: c7ff2fedd8048dfec845483778557ac8068734b8
           NOTES
           if gh release view kadr-windows-1.0.34 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload kadr-windows-1.0.34 KADR-Setup-1.0.34.exe KADR-Setup-1.0.34.sha256 --clobber --repo "$GITHUB_REPOSITORY"
@@ -96,7 +96,7 @@ jobs:
               channel='release-candidate',
               release_date=datetime.now(timezone.utc).strftime('%Y-%m-%d'),
               published_at=datetime.now(timezone.utc).isoformat(),
-              source_commit='58996dd933ab46bb2b8d859577c2d675421811d7',
+              source_commit='c7ff2fedd8048dfec845483778557ac8068734b8',
               verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/'+os.environ['VALIDATED_RUN_ID'],
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.34')
           manifest['windows'].update(
