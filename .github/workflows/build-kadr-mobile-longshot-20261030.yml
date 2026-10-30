@@ -1,0 +1,114 @@
+name: Build KADR Mobile 1.0.25 Long Screenshot PNG and PDF
+on:
+  push:
+    paths: ['.github/workflows/build-kadr-mobile-longshot-20261030.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-kadr-mobile-longshot-20261030
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SOURCE_SHA: 1fceb9ac5e1da87916c83da1b6cfcfb34d698b51
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out exact private source revision
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 1fceb9ac5e1da87916c83da1b6cfcfb34d698b51
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: source
+          persist-credentials: false
+
+      - name: Check source and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
+          grep -q "versionCode 35" source/mobile/android/app/build.gradle
+          grep -q "versionName '1.0.25'" source/mobile/android/app/build.gradle
+          test -f source/mobile/android/app/src/main/java/com/kadr/mobile/LongScreenshotPdfExporter.java
+          test -f source/mobile/android/app/src/main/java/com/kadr/mobile/LongScreenshotAccessibilityService.java
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Android tests and compile debug
+        working-directory: source/mobile/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Restore established preview signing certificate
+        shell: bash
+        env:
+          KADR_ANDROID_SIGNING_PASSWORD: ${{ secrets.KADR_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KADR_ANDROID_SIGNING_PASSWORD"
+          mkdir -p source/mobile/android/KADR/signing
+          base64 -d source/mobile/android/signing/kadr-preview.keystore.b64 > source/mobile/android/KADR/signing/kadr-preview.jks
+          {
+            echo 'storeFile=../KADR/signing/kadr-preview.jks'
+            printf 'storePassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+            echo 'keyAlias=kadr'
+            printf 'keyPassword=%s\n' "$KADR_ANDROID_SIGNING_PASSWORD"
+          } > source/mobile/android/KADR/signing/key.properties
+
+      - name: Build and validate signed release APK
+        working-directory: source/mobile/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/apk/release/app-release.apk
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/KADR-Mobile-1.0.25-Longshot.apk"
+          cd "$GITHUB_WORKSPACE"
+          sha256sum KADR-Mobile-1.0.25-Longshot.apk > KADR-Mobile-1.0.25-Longshot.sha256
+
+      - name: Publish verified test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='kadr-mobile-1.0.25-longshot-20261030'
+          cat > /tmp/longshot-release.md <<EOF
+          # KADR Mobile 1.0.25 — Android Long Screenshot Test Build
+
+          Adds long screenshots with manual floating Start / Stop / Cancel, up/down scrolling, PNG, multipage PDF, or both; progress indicator and KADR gallery integration.
+          Android unit tests, debug compilation, and signed release compilation passed in this workflow.
+          On-device testing is still required. PNG: Pictures/Screenshots/KADR. PDF: Download/KADR.
+
+          Private source revision: ${SOURCE_SHA}
+          EOF
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file /tmp/longshot-release.md --prerelease
+            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" KADR-Mobile-1.0.25-Longshot.apk KADR-Mobile-1.0.25-Longshot.sha256 --clobber
+          else
+            gh release create "$tag" KADR-Mobile-1.0.25-Longshot.apk KADR-Mobile-1.0.25-Longshot.sha256 --repo "$GITHUB_REPOSITORY" --title "KADR Mobile 1.0.25 — Long Screenshot PNG/PDF" --notes-file /tmp/longshot-release.md --prerelease
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets > /tmp/apk-assets.json
+          node -e "if(!require('/tmp/apk-assets.json').assets.some(a=>a.name==='KADR-Mobile-1.0.25-Longshot.apk'&&a.size>1000000))process.exit(1)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: KADR-Mobile-Longshot-1.0.25
+          path: |
+            KADR-Mobile-1.0.25-Longshot.apk
+            KADR-Mobile-1.0.25-Longshot.sha256
+          if-no-files-found: ignore
+          retention-days: 14
