@@ -16,14 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      SOURCE_SHA: 450938e2c4f68a51b7307da2bbe9709c03118ad7
+      SOURCE_SHA: 4c9a4919c86ca0c6e3e39b83716c54eba2ea9082
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out exact private source revision
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 450938e2c4f68a51b7307da2bbe9709c03118ad7
+          ref: 4c9a4919c86ca0c6e3e39b83716c54eba2ea9082
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: source
           persist-credentials: false
@@ -76,15 +76,15 @@ jobs:
           ./gradlew --no-daemon assembleRelease
           test -s app/build/outputs/apk/release/app-release.apk
           jarsigner -verify app/build/outputs/apk/release/app-release.apk
-          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/KADR-Mobile-1.0.25-Longshot-Fix2.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/KADR-Mobile-1.0.25-Longshot-ScrollFix.apk"
           cd "$GITHUB_WORKSPACE"
-          sha256sum KADR-Mobile-1.0.25-Longshot-Fix2.apk > KADR-Mobile-1.0.25-Longshot-Fix2.sha256
+          sha256sum KADR-Mobile-1.0.25-Longshot-ScrollFix.apk > KADR-Mobile-1.0.25-Longshot-ScrollFix.sha256
 
       - name: Publish verified test APK
         shell: bash
         run: |
           set -euo pipefail
-          tag='kadr-mobile-1.0.25-longshot-fix2-20261030'
+          tag='kadr-mobile-1.0.25-longshot-scrollfix-20261030'
           cat > /tmp/longshot-release.md <<EOF
           # KADR Mobile 1.0.25 — Android Long Screenshot Test Build
 
@@ -96,19 +96,19 @@ jobs:
           EOF
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file /tmp/longshot-release.md --prerelease
-            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" KADR-Mobile-1.0.25-Longshot-Fix2.apk KADR-Mobile-1.0.25-Longshot-Fix2.sha256 --clobber
+            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" KADR-Mobile-1.0.25-Longshot-ScrollFix.apk KADR-Mobile-1.0.25-Longshot-ScrollFix.sha256 --clobber
           else
-            gh release create "$tag" KADR-Mobile-1.0.25-Longshot-Fix2.apk KADR-Mobile-1.0.25-Longshot-Fix2.sha256 --repo "$GITHUB_REPOSITORY" --title "KADR Mobile 1.0.25 — Long Screenshot PNG/PDF" --notes-file /tmp/longshot-release.md --prerelease
+            gh release create "$tag" KADR-Mobile-1.0.25-Longshot-ScrollFix.apk KADR-Mobile-1.0.25-Longshot-ScrollFix.sha256 --repo "$GITHUB_REPOSITORY" --title "KADR Mobile 1.0.25 — Long Screenshot PNG/PDF" --notes-file /tmp/longshot-release.md --prerelease
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets > /tmp/apk-assets.json
-          node -e "if(!require('/tmp/apk-assets.json').assets.some(a=>a.name==='KADR-Mobile-1.0.25-Longshot-Fix2.apk'&&a.size>1000000))process.exit(1)"
+          node -e "if(!require('/tmp/apk-assets.json').assets.some(a=>a.name==='KADR-Mobile-1.0.25-Longshot-ScrollFix.apk'&&a.size>1000000))process.exit(1)"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: KADR-Mobile-Longshot-1.0.25
           path: |
-            KADR-Mobile-1.0.25-Longshot-Fix2.apk
-            KADR-Mobile-1.0.25-Longshot-Fix2.sha256
+            KADR-Mobile-1.0.25-Longshot-ScrollFix.apk
+            KADR-Mobile-1.0.25-Longshot-ScrollFix.sha256
           if-no-files-found: ignore
           retention-days: 14
