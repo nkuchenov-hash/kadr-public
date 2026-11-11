@@ -18,15 +18,16 @@
     "version_location": "Settings > About and tray"
   },
   "android": {
-    "version": "1.0.28",
-    "build": 38,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.28/KADR-Mobile-1.0.28.apk",
-    "filename": "KADR-Mobile-1.0.28.apk",
+    "version": "1.0.29",
+    "build": 39,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.29/KADR-Mobile-1.0.29.apk",
+    "filename": "KADR-Mobile-1.0.29.apk",
     "version_location": "Settings > bottom",
-    "checksum_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.28/SHA256SUMS.txt",
+    "checksum_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.29/SHA256SUMS.txt",
     "release_date": "2026-11-11",
-    "source_commit": "a5a7844ed1ed77278fe91dcd4c855da149eb8cab",
-    "verification_run": "https://github.com/nkuchenov-hash/KADR/actions/runs/43030111145"
+    "source_commit": "68596bc1eb88d41009f3d72ec13aa2ad8df704ea",
+    "verification_run": "https://github.com/nkuchenov-hash/KADR/actions/runs/43068380329",
+    "physical_phone_to_pc_delivery": "not_verified"
   },
   "validation": {
     "windows_ci": "passed",
