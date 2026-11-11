@@ -18,13 +18,15 @@
     "version_location": "Settings > About and tray"
   },
   "android": {
-    "version": "1.0.26",
-    "build": 36,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-1.0.26-rc/KADR-Mobile-1.0.26.apk",
-    "filename": "KADR-Mobile-1.0.26.apk",
-    "size_bytes": 52014929,
-    "sha256": "2e352f95b94d88d723bce10a913073e30ffa9d5f3b40164fae8247033a4534c3",
-    "version_location": "Settings > bottom"
+    "version": "1.0.28",
+    "build": 38,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.28/KADR-Mobile-1.0.28.apk",
+    "filename": "KADR-Mobile-1.0.28.apk",
+    "version_location": "Settings > bottom",
+    "checksum_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.28/SHA256SUMS.txt",
+    "release_date": "2026-11-11",
+    "source_commit": "a5a7844ed1ed77278fe91dcd4c855da149eb8cab",
+    "verification_run": "https://github.com/nkuchenov-hash/KADR/actions/runs/43030111145"
   },
   "validation": {
     "windows_ci": "passed",
@@ -40,6 +42,6 @@
     "physical_long_scroll_cursor": "not-verified",
     "physical_smart_pdf_pagination": "not-verified"
   },
-  "notes": "Windows 1.0.34: percentage and native progress bar during long PNG/PDF save, smart A4 page breaks to avoid splitting messages when possible; KADR 1.0.33 cursor fix and previous features retained. Physical device acceptance pending.",
+  "notes": "Windows 1.0.34 remains the desktop build. Android 1.0.28: signed receiver/pairing validation, queue retention, Wi-Fi/VPN recovery, settings redesign. Physical-device transfer still requires validation.",
   "current_version_scope": "windows"
 }
