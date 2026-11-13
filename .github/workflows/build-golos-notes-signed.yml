@@ -1,0 +1,108 @@
+name: GOLOS Notes — signed Android APK
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-golos-notes-signed.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: golos-notes-signed-release
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout public release repository
+        uses: actions/checkout@v4
+
+      - name: Checkout GOLOS Notes isolated build snapshot
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ci/golos-notes-android-20261114
+          path: private-source
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Android SDK 35
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Load dedicated GOLOS Notes signing key from private Git blobs
+        env:
+          GH_TOKEN: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || { echo 'Missing KADR_PRIVATE_REPO_TOKEN'; exit 1; }
+          gh api 'repos/nkuchenov-hash/KADR/git/blobs/3a5032a8673f52316cc925d1085522b295786f28' --jq '.content' \
+            | tr -d '\n' | base64 -d > "$RUNNER_TEMP/golos-notes-release.p12"
+          password="$(gh api 'repos/nkuchenov-hash/KADR/git/blobs/25dfc46cfd8b5062e1ac8743aad547e4392ed012' --jq '.content' | tr -d '\n' | base64 -d)"
+          echo "::add-mask::$password"
+          chmod 600 "$RUNNER_TEMP/golos-notes-release.p12"
+          keytool -list -keystore "$RUNNER_TEMP/golos-notes-release.p12" -storetype PKCS12 -storepass "$password" -alias golos-notes >/dev/null
+          echo "GOLOS_NOTES_SIGNING_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "GOLOS_NOTES_SIGNING_STORE=$RUNNER_TEMP/golos-notes-release.p12" >> "$GITHUB_ENV"
+
+      - name: Build signed release
+        working-directory: private-source/ci/golos-notes-android/mobile/android
+        run: gradle :app:assembleRelease --no-daemon --console=plain --stacktrace
+
+      - name: Verify release signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='private-source/ci/golos-notes-android/mobile/android/app/build/outputs/apk/release/app-release.apk'
+          test -s "$apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -n 1)"
+          "$signer" verify --verbose "$apk"
+          cert="$("$signer" verify --print-certs "$apk" | awk '/SHA-256 digest:/ {print $NF;exit}' | tr '[:upper:]' '[:lower:]')"
+          test "$cert" = 'd3ea886ec3f04bce2edc00f8638f6025935b83b1bdf7aef4ec5cc6dad7445cda'
+          "$aapt" dump badging "$apk" | head -n 1
+          "$aapt" dump badging "$apk" | head -n 1 | grep -q "name='com.golos.notes' versionCode='1' versionName='0.1.0'"
+          mkdir -p dist
+          cp "$apk" dist/GOLOS-Notes-Android-0.1.0.apk
+          ( cd dist && sha256sum GOLOS-Notes-Android-0.1.0.apk > SHA256SUMS.txt )
+
+      - name: Keep installable APK as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GOLOS-Notes-Android-0.1.0-signed
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Publish signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='golos-notes-android-v0.1.0'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" dist/* --clobber
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" dist/* \
+              --target "$GITHUB_SHA" --title "GOLOS Notes Android 0.1.0 — signed preview" \
+              --notes "New app com.golos.notes. Separate stable GOLOS Notes signing key, local WAV recorder with microphone foreground service and recovery, playback/export and optional universal Groq AI notes. Android 16 hardware validation and KADR synchronization are still pending." \
+              --prerelease
+          fi
