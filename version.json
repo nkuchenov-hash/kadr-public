@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.35",
+  "current_version": "1.0.34",
   "channel": "stable",
-  "release_date": "2026-11-12",
+  "release_date": "2026-10-26",
   "published_at": "2026-11-12T12:45:41.9030442+00:00",
-  "source_commit": "82df0193f2917224215cc7bc119f5662d49c508a",
+  "source_commit": "c7ff2fedd8048dfec845483778557ac8068734b8",
   "verification_run": "https://github.com/nkuchenov-hash/KADR/actions/runs/43219342515",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.35",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.34",
   "windows": {
-    "version": "1.0.35",
-    "build": 35,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.35/KADR-Setup-1.0.35.exe",
-    "filename": "KADR-Setup-1.0.35.exe",
-    "size_bytes": 12754164,
-    "sha256": "941a5a2362523bc3ec3ebda51db911ed1bc0f79dcc84c7a00ef778651526e93b",
+    "version": "1.0.34",
+    "build": 34,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.34/KADR-Setup-1.0.34.exe",
+    "filename": "KADR-Setup-1.0.34.exe",
+    "size_bytes": 12759055,
+    "sha256": "6b55cde5503132e4d230e1fa212220b7914787ca654af5ca3acaadfa04a9fc2c",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -43,6 +43,6 @@
     "physical_long_scroll_cursor": "not-verified",
     "physical_smart_pdf_pagination": "not-verified"
   },
-  "notes": "Windows 1.0.35 stable: reduced background polling, retained 1.0.34 screenshot and screencast features. Physical Windows performance and Android-to-PC transport validation pending.",
+  "notes": "Safety rollback to Windows 1.0.34: Windows 1.0.35 was reported to crash at launch and to regress the tray after screenshot. 1.0.35 is withdrawn from latest distribution pending a verified fix. Physical runtime stability of 1.0.34 is not independently confirmed.",
   "current_version_scope": "windows"
 }
