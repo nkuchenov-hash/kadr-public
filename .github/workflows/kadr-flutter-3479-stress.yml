@@ -1,0 +1,37 @@
+name: Stress compiled KADR 1.0.36 Flutter 3.47.9 runtime
+on:
+  push:
+    paths: [.github/workflows/kadr-flutter-3479-stress.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  stress:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Get exactly compiled Flutter 3.47.9 Windows release
+        shell: pwsh
+        run: |
+          gh run download 43414436387 --repo $env:GITHUB_REPOSITORY --name KADR-136-Flutter-3479-validated-runtime --dir runtime
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path runtime/kadr.exe)) { throw 'No previously compiled Windows runtime available' }
+      - name: Checkout exact smoke script for startup/tray
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Check cold starts and real tray 10 cycles each, 10 fresh processes
+        shell: pwsh
+        run: |
+          $runtime = (Resolve-Path runtime).Path
+          for ($i=1; $i -le 10; $i++) {
+            Write-Host "FLUTTER3479_RELIABILITY_ITERATION $i / 10"
+            powershell -NoProfile -ExecutionPolicy Bypass -File source/tool/windows_startup_tray_smoke.ps1 -ReleaseDir $runtime -TrayCycles 10 -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
+            if ($LASTEXITCODE -ne 0) { throw "Flutter 3.47.9 KADR failed runtime iteration $i" }
+          }
+          Write-Host 'KADR_FLUTTER_3479_STABLE_10_PROCESSES_100_TRAY_CYCLES'
