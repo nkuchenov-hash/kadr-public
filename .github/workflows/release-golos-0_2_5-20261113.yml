@@ -114,7 +114,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Rust formatting check failed' }
           # ort-sys rc12 may receive dangling DLL symlinks from the Windows
           # archive, so its fs::copy fallback crashes with OS error 3.
-          $metadata = cargo metadata --locked --format-version 1 | ConvertFrom-Json
+          $metadata = cargo metadata --format-version 1 | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed' }
           $ort = @($metadata.packages | Where-Object { $_.name -eq 'ort-sys' -and $_.version -eq '2.0.0-rc.12' })
           if ($ort.Count -ne 1) { throw 'ORT package metadata missing' }
@@ -128,7 +128,7 @@ jobs:
             New-Item -ItemType Directory -Force -Path $folder | Out-Null
           }
           Write-Host 'Applied scoped ORT rc12 clean-runner workaround'
-          cargo test --release --locked
+          cargo test --release
           if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
       - name: Build NSIS installer
         shell: pwsh
