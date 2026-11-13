@@ -39,7 +39,7 @@ jobs:
           test -f source/mobile/android/app/src/main/java/com/kadr/mobile/KadrThemedActivity.java
           test -f source/mobile/android/app/src/main/java/com/kadr/mobile/EditorToolIconView.java
           test -f source/mobile/android/app/src/main/java/com/kadr/mobile/PreviewActionIconView.java
-          test -f source/mobile/android/app/src/test/java/com/kadr/mobile/MobileUi133RegressionTest.java
+          test -f source/mobile/android/app/src/test/java/com/kadr/mobile/MobileUi132RegressionTest.java
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
