@@ -108,3 +108,5 @@ jobs:
               --notes "New app com.golos.notes. Separate stable GOLOS Notes signing key, local WAV recorder with microphone foreground service and recovery, playback/export and optional universal Groq AI notes. Android 16 hardware validation and KADR synchronization are still pending." \
               --prerelease
           fi
+
+# Rebuild 0.1.2 after replacing missing Android framework copy icon with packaged vector.
