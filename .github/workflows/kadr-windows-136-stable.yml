@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
+      SOURCE_SHA: 068d5b7b9dff4f40689c5fb45fa682ab143871dc
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact private KADR source
@@ -168,7 +168,7 @@ jobs:
 
           Windows CI, Flutter 3.47.9, 8 real cold launches and 80 actual tray open/close cycles passed.
           On-device Windows configurations and actual phone transfer still require acceptance.
-          Private source: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
+          Private source: 068d5b7b9dff4f40689c5fb45fa682ab143871dc
           '@ | Set-Content -Path release-notes.md -Encoding utf8
           $repo = $env:GITHUB_REPOSITORY
           gh release view kadr-windows-1.0.36 --repo $repo *> $null
@@ -228,7 +228,7 @@ jobs:
           now=datetime.now(timezone.utc)
           manifest.update(current_version='1.0.36',channel='stable',release_date=now.strftime('%Y-%m-%d'),
               published_at=now.isoformat(),
-              source_commit='05e6ad9a78ce7bc79962c1957478e5714e63bd18',
+              source_commit='068d5b7b9dff4f40689c5fb45fa682ab143871dc',
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36')
           manifest['windows'].update(version='1.0.36',build=36,
               download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
