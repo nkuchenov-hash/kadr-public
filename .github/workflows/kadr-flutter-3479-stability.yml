@@ -1,0 +1,51 @@
+name: KADR Flutter 3.47.9 Windows runtime comparison
+on:
+  push:
+    paths:
+      - '.github/workflows/kadr-flutter-3479-stability.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: source
+      - name: Pin prior Flutter Windows engine
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+          cache: true
+      - name: Verify Flutter engine version
+        run: flutter --version
+      - name: Dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Regression tests
+        working-directory: source
+        run: flutter test test/tray_startup_performance_contract_test.dart test/tray_recovery_after_capture_test.dart test/capture_editor_locked_contract_test.dart
+      - name: Build Windows Release with Flutter 3.47.9
+        working-directory: source
+        run: flutter build windows --release
+      - name: Launch actual GUI and open tray 20x on previous engine
+        working-directory: source
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -ReleaseDir build/windows/x64/runner/Release -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10 -TrayCycles 20
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter 3.47.9 release still crashes' }
+      - name: Persist successful engine comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-136-Flutter-3479-validated-runtime
+          path: source/build/windows/x64/runner/Release
+          if-no-files-found: error
+          retention-days: 7
