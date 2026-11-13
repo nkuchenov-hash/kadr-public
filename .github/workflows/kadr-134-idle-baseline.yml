@@ -1,0 +1,47 @@
+name: KADR 1.0.34 idle-startup baseline isolation
+on:
+  push:
+    paths:
+      - '.github/workflows/kadr-134-idle-baseline.yml'
+permissions:
+  contents: read
+jobs:
+  idle:
+    runs-on: windows-2022
+    timeout-minutes: 6
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Install exact existing stable 1.0.34
+        shell: pwsh
+        run: |
+          gh release download kadr-windows-1.0.34 --repo $env:GITHUB_REPOSITORY -p KADR-Setup-1.0.34.exe
+          if ($LASTEXITCODE -ne 0) { throw 'No baseline installer' }
+          $dest = Join-Path $env:RUNNER_TEMP 'KADR-baseline-idle'
+          $setup = (Resolve-Path 'KADR-Setup-1.0.34.exe').Path
+          $p = Start-Process $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dest") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Baseline install failed' }
+      - name: Verify idle process stays alive without tray interaction
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'KADR-baseline-idle'
+          $before = Get-Date
+          $p = Start-Process (Join-Path $dest 'kadr.exe') -ArgumentList '--startup' -WorkingDirectory $dest -PassThru
+          try {
+            for ($i=0; $i -lt 45; $i++) {
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if ($p.HasExited) { Write-Host "Idle exit at $i seconds; code $($p.ExitCode)"; break }
+            }
+            $p.Refresh()
+            if ($p.HasExited) {
+              Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$before} -ErrorAction SilentlyContinue |
+                Where-Object { $_.Message -match 'kadr.exe' } | Select-Object -First 3 TimeCreated,Message |
+                Format-List | Out-String | Write-Host
+              throw 'Baseline 1.0.34 crashes without any tray interaction'
+            }
+            Write-Host "BASELINE_134_IDLE_45_SECONDS_SUCCESS process=$($p.Id) memoryMB=$([math]::Round($p.PrivateMemorySize64/1MB))"
+          } finally {
+            $p.Refresh()
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          }
