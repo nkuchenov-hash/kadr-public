@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
+      SOURCE_SHA: ec2da52fb4bdb491da74af0a5fb5d6f5303e0bab
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact private KADR source
@@ -119,8 +119,13 @@ jobs:
         shell: pwsh
         run: |
           $target = Join-Path $env:RUNNER_TEMP 'KADR-1.0.36-verified'
-          powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -ReleaseDir $target -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
-          if ($LASTEXITCODE -ne 0) { throw 'Real installed KADR startup or tray smoke test failed. DO NOT PUBLISH' }
+          # Repeated cold starts expose the intermittent 0xc0000005 crash
+          # that a single apparently successful 20-second run can miss.
+          for ($attempt=1; $attempt -le 8; $attempt++) {
+            Write-Host "KADR_REAL_WINDOWS_SMOKE attempt=$attempt of 8"
+            powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -ReleaseDir $target -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10 -TrayCycles 10
+            if ($LASTEXITCODE -ne 0) { throw "Real installed KADR startup/tray attempt $attempt failed. DO NOT PUBLISH" }
+          }
 
       - name: Record immutable validated installer
         shell: pwsh
@@ -160,9 +165,9 @@ jobs:
           - Отдельное окно трея больше не закрывается из-за смены фокуса скрытого основного окна
           - Сохранены редактор, длинные скриншоты PDF/PNG, видеозапись и мобильная синхронизация
 
-          Windows CI and installable EXE runtime smoke (repeated tray open/close) passed.
+          Windows CI, 8 real cold launches and 80 actual tray open/close cycles passed.
           On-device Windows configurations and actual phone transfer still require acceptance.
-          Private source: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
+          Private source: ec2da52fb4bdb491da74af0a5fb5d6f5303e0bab
           '@ | Set-Content -Path release-notes.md -Encoding utf8
           $repo = $env:GITHUB_REPOSITORY
           gh release view kadr-windows-1.0.36 --repo $repo *> $null
@@ -222,15 +227,15 @@ jobs:
           now=datetime.now(timezone.utc)
           manifest.update(current_version='1.0.36',channel='stable',release_date=now.strftime('%Y-%m-%d'),
               published_at=now.isoformat(),
-              source_commit='05e6ad9a78ce7bc79962c1957478e5714e63bd18',
+              source_commit='ec2da52fb4bdb491da74af0a5fb5d6f5303e0bab',
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36')
           manifest['windows'].update(version='1.0.36',build=36,
               download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
               filename='KADR-Setup-1.0.36.exe',size_bytes=size,sha256=digest)
           manifest['validation']['windows_ci']='passed'
           manifest['validation']['installed_exe_startup']='passed_on_windows_runner'
-          manifest['validation']['tray_open_close_20x']='passed_on_windows_runner'
-          manifest['notes']='Stable Windows 1.0.36: startup, tray focus, async history refresh, lazy auxiliary engines; verified installed binary and 20 real tray open/close cycles.'
+          manifest['validation']['tray_open_close_80x']='passed_on_windows_runner'
+          manifest['notes']='Stable Windows 1.0.36: startup, tray focus, async history refresh, lazy auxiliary engines; verified installed binary and 80 real tray open/close cycles.'
           path.write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
           '@ | Set-Content -Path update-kadr-site.py -Encoding utf8
           python update-kadr-site.py
