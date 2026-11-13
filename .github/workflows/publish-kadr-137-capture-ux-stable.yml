@@ -44,7 +44,7 @@ jobs:
           $version = (Get-Item $exe).VersionInfo.ProductVersion
           if (-not $version.StartsWith('1.0.37')) { throw "Wrong verified runtime version $version" }
           $sourceVersion = Get-Content 'source/pubspec.yaml' -Raw
-          if ($sourceVersion -notmatch '(?m)^version:\s*1\.0\.36\+36\s*$') { throw 'Wrong source version' }
+          if ($sourceVersion -notmatch '(?m)^version:\s*1\.0\.37\+37\s*$') { throw 'Wrong source version' }
           $hash=(Get-FileHash $exe -Algorithm SHA256).Hash
           "KADR_RUNTIME_EXE_SHA=$hash" >> $env:GITHUB_ENV
           Write-Host "Verified Windows runtime commit=$env:SOURCE_SHA, EXE sha256=$hash"
