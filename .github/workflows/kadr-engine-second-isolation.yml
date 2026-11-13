@@ -1,0 +1,62 @@
+name: Identify KADR native Flutter engine responsible for startup crash
+on:
+  push:
+    paths: [.github/workflows/kadr-engine-second-isolation.yml]
+permissions:
+  contents: read
+jobs:
+  isolate:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [main_only, main_editor, main_tray]
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Checkout KADR diagnostic native source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 57aee74be9782189aa94c785329ed6b9169ba8d1
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Flutter setup
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Dependency resolution
+        working-directory: source
+        run: flutter pub get
+      - name: Compile all diagnostic modes into one Windows release
+        working-directory: source
+        run: flutter build windows --release
+      - name: Repeated KADR native engine startup (12x8s)
+        shell: pwsh
+        working-directory: source
+        env:
+          KADR_DIAGNOSTIC_ENGINE_MODE: ${{ matrix.mode }}
+        run: |
+          $dir = (Resolve-Path 'build/windows/x64/runner/Release').Path
+          $fail=0
+          $start=Get-Date
+          for($i=1;$i -le 12;$i++){
+            $p=Start-Process (Join-Path $dir 'kadr.exe') -ArgumentList '--startup' -WorkingDirectory $dir -PassThru
+            for($s=1;$s -le 8;$s++){
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if($p.HasExited){
+                $fail++
+                Write-Host "ENGINE_MODE_FAILURE mode=${{ matrix.mode }} attempt=$i second=$s exit=$($p.ExitCode)"
+                break
+              }
+            }
+            $p.Refresh()
+            if(-not $p.HasExited) {
+              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+              Write-Host "ENGINE_MODE_PASS mode=${{ matrix.mode }} attempt=$i"
+            }
+          }
+          Write-Host "ENGINE_MODE_SUMMARY mode=${{ matrix.mode }} failed=$fail/12"
+          if ($fail -gt 0) { throw 'Engine mode is not sufficiently reliable' }
