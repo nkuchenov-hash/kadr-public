@@ -35,13 +35,13 @@
       <div class="eyebrow">Release notes with a pulse</div>
       <h1>WHAT CHANGED<br>WHAT GETS BETTER</h1>
       <p>Every public KADR update gets a small release story here: what shipped, what became faster or easier, and which improvements you can use right away.</p>
-      <p><strong>Current releases: Windows 1.0.37 · Android 1.0.33 RC</strong> · <a href="../version.json">Version manifest and checksums</a></p>
+      <p><strong>Current releases: Windows 1.0.37 · Android 1.0.34 RC</strong> · <a href="../version.json">Version manifest and checksums</a></p>
     </div>
     <div data-lang="ru">
       <div class="eyebrow">Обновления живым языком</div>
       <h1>ЧТО ИЗМЕНИЛОСЬ<br>ЧТО СТАЛО ЛУЧШЕ</h1>
       <p>Каждое публичное обновление КАДР получает здесь короткую заметку: что вышло, что стало быстрее или удобнее и какими улучшениями уже можно пользоваться.</p>
-      <p><strong>Актуальные версии: Windows 1.0.37 · Android 1.0.33 RC</strong> · <a href="../version.json">Версии и контрольные суммы</a></p>
+      <p><strong>Актуальные версии: Windows 1.0.37 · Android 1.0.34 RC</strong> · <a href="../version.json">Версии и контрольные суммы</a></p>
     </div>
   </section>
 
@@ -77,6 +77,10 @@
   const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const fallbackStories={
+    'kadr-mobile-1.0.34-rc':{
+      en:{title:'KADR Mobile 1.0.34 — screenshot Markup rebuilt',lede:'A mobile-first editor inspired by the usable interaction principles of Apple Markup, with the KADR visual language.',body:['The screenshot now owns the central area. Back, Undo, Redo and Done sit at the top. A single rounded bottom dock keeps Hand, Pen, Eraser, Crop, Text and More visible without sideways scrolling.','Colors and line thickness have their own controls. More contains Marker, Arrow, Line, Rectangle, Oval, Blur and Pixelate. The marker is translucent; erasing works by dragging; Undo/Redo restores erased annotations too. Automated Android unit tests, release build and signing-certificate comparison passed; physical Android 16 UI acceptance remains pending.']},
+      ru:{title:'KADR Mobile 1.0.34 — редактор по логике Разметки iPhone',lede:'Мобильный редактор больше не выглядит как уменьшенная компьютерная программа: главное место занимает сам снимок.',body:['Сверху расположены «Назад», «Отменить», «Повторить» и «Готово». Снизу — одна скруглённая панель: Рука, Ручка, Ластик, Кадр, Текст, Ещё. Все основные инструменты видны без прокрутки.','Цвет и толщина настраиваются отдельно. В «Ещё» доступны Маркер, Стрелка, Линия, Прямоугольник, Овал, Размытие и Пикселизация. Маркер полупрозрачный, ластик работает протягиванием пальца, удалённую разметку можно восстановить через «Отменить». Android-тесты, сборка и проверка подписи прошли; проверка на реальном Android 16 ещё не проведена.']}
+    },
     'kadr-mobile-1.0.33-rc':{
       en:{title:'KADR Mobile 1.0.33 — full screenshot, no fake connection check',lede:'Screenshots now begin at the top, with a compact translucent dock outside the photo.',body:['Removed the misleading Check connection control that did not perform a real connectivity test. Genuine delivery status still depends on the computer acknowledging receipt.','The screenshot viewer now scales images to fit while keeping them horizontally centered and top-aligned. A rounded semi-transparent 70dp bar occupies reserved space beneath the image, so the screenshot bottom stays visible. Tap the photo to hide the bar and fill the screen. Automated Android tests, package-signature comparison and signed release build passed. Android 16 physical testing is pending.']},
       ru:{title:'KADR Mobile 1.0.33 — снимок целиком и аккуратная панель',lede:'Изображение начинается от верхнего края, а компактная полупрозрачная панель больше не закрывает его низ.',body:['Убрана кнопка «Проверить соединение», которая не выполняла настоящей проверки. Статус доставки по-прежнему подтверждается ответом компьютера, а подробности доступны в диагностике.','Просмотр выравнивает изображение сверху и по центру, показывая его целиком без обрезки. Скруглённая полупрозрачная панель высотой 70dp находится ниже снимка; касание изображения скрывает панель и расширяет область просмотра. Автотесты, проверка подписи и сборка прошли, проверка на реальном Android 16 ещё необходима.']}
