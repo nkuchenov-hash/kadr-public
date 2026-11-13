@@ -1,0 +1,67 @@
+name: Validate KADR Windows 1.0.37 screenshot editor UX
+
+on:
+  push:
+    paths:
+      - .github/workflows/kadr-137-capture-ux.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact private KADR 1.0.37 source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ec1f201ca5872da3881faac04bbab256997c303a
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: source
+      - name: Setup stable Flutter Windows 3.47.9
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+          cache: true
+      - name: Resolve dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Static analysis
+        working-directory: source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Behavior and baseline tests
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/capture_eraser_outside_panels_live_resize_test.dart test/capture_editor_locked_contract_test.dart test/p0_native_region_capture_test.dart test/p0_tray_hotkey_overlay_test.dart test/tray_startup_performance_contract_test.dart test/history_recent_recovery_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Capture UX regression tests failed' }
+      - name: Verify protected capture editor and original accepted UI
+        shell: pwsh
+        working-directory: source
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/verify_capture_editor_lock.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Capture editor invariant failed' }
+          git fetch origin baseline/working-ui-0983ab6:refs/remotes/origin/baseline/working-ui-0983ab6
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/verify_working_ui_baseline.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Working UI baseline failed' }
+      - name: Build Windows executable with capture fixes
+        working-directory: source
+        run: flutter build windows --release
+      - name: Exercise real GUI with ten native tray open-close cycles
+        working-directory: source
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -ReleaseDir build/windows/x64/runner/Release -TrayCycles 10 -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
+          if ($LASTEXITCODE -ne 0) { throw 'Windows GUI startup/tray failed' }
+      - name: Store compiled candidate for later installer verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-1.0.37-capture-ux-verified-runtime
+          path: source/build/windows/x64/runner/Release
+          if-no-files-found: error
+          retention-days: 7
