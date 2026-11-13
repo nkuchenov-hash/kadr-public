@@ -1,0 +1,50 @@
+name: Validate KADR 1.0.36 lazy Flutter hosts
+on:
+  push:
+    paths: [.github/workflows/kadr-136-lazy-hosts.yml]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact KADR lazy-hosts candidate
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 9240fa0c475d378a3165b65a54e021cd5d823055
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: source
+      - name: Use Windows-tested Flutter 3.47.9
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+          cache: true
+      - name: Resolve dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Verify editor and tray lifecycle tests
+        working-directory: source
+        run: flutter test test/tray_startup_performance_contract_test.dart test/capture_editor_locked_contract_test.dart test/tray_recovery_after_capture_test.dart
+      - name: Build real KADR Windows Release
+        working-directory: source
+        run: flutter build windows --release
+      - name: Run 8 cold starts with actual native tray open/close
+        working-directory: source
+        shell: pwsh
+        run: |
+          for ($n=1; $n -le 8; $n++) {
+            Write-Host "KADR_LAZY_HOST_RUN $n / 8"
+            powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -ReleaseDir build/windows/x64/runner/Release -TrayCycles 10 -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
+            if ($LASTEXITCODE -ne 0) { throw "Failed lazy-hosts runtime iteration $n" }
+          }
+      - name: Keep passing Windows runtime binary for stable packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-1.0.36-lazy-hosts-verified-runtime
+          path: source/build/windows/x64/runner/Release
+          if-no-files-found: error
