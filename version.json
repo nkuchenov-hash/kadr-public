@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.36",
+  "current_version": "1.0.37",
   "channel": "stable",
   "release_date": "2026-11-13",
-  "published_at": "2026-11-13T12:02:47Z",
-  "source_commit": "b0069f1f855bb92d49b50d331bf063115ed9e227",
-  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/43421635005",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36",
+  "published_at": "2026-11-13T13:32:20.093Z",
+  "source_commit": "377c8e768b8b106938011152fdcdd675ddc332ec",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/43433954643",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.37",
   "windows": {
-    "version": "1.0.36",
-    "build": 36,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.36/KADR-Setup-1.0.36.exe",
-    "filename": "KADR-Setup-1.0.36.exe",
-    "size_bytes": 12820710,
-    "sha256": "4b4bf0c7cac95e0dd25d743eb89424e986b1f6b628ee40337b6276255fa33be6",
+    "version": "1.0.37",
+    "build": 37,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.37/KADR-Setup-1.0.37.exe",
+    "filename": "KADR-Setup-1.0.37.exe",
+    "size_bytes": 12818731,
+    "sha256": "b0491281783c3cad6282a5641689d3c443100aad11a5c28877bedaac3692ef61",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -43,8 +43,11 @@
     "physical_long_scroll_cursor": "not-verified",
     "physical_smart_pdf_pagination": "not-verified",
     "installed_exe_startup": "passed_on_windows_runner",
-    "tray_open_close_110x": "passed_on_windows_runner"
+    "tray_open_close_110x": "passed_on_windows_runner",
+    "tray_open_close_80x": "passed_on_windows_runner",
+    "capture_eraser_widget_test": "passed",
+    "capture_ux_source_contract_tests": "passed"
   },
-  "notes": "KADR Windows 1.0.36 stable. Lazy auxiliary Flutter hosts, Flutter 3.47.9. Verified Windows installer installation with matching EXE and app.so SHA256; 11 Windows cold-start cycles and 110 real native tray open/close cycles successful. Physical screenshot/editor, long scrolling, and Android transfer on the user's PC remain to be checked.",
+  "notes": "Windows 1.0.37 stable: outside-first screenshot action/tool panel placement; legible hand icon and larger glyphs; eraser removes touched annotations with undo; live selection resize repaint. Flutter 3.47.9. Dart tests and protected UI/editor guards passed, verified exact installed binary and 8 real installed cold starts with 80 tray cycles. Physical screenshot UX and mobile transfer on user's PC are not yet verified.",
   "current_version_scope": "windows"
 }
