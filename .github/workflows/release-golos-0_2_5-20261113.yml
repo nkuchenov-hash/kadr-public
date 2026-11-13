@@ -1,0 +1,182 @@
+name: Build and publish GOLOS 0.2.5 fixed Windows installer
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/release-golos-0_2_5-20261113.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: golos-0-2-5-fixed-windows-release
+  cancel-in-progress: false
+
+jobs:
+  build-publish:
+    runs-on: windows-2022
+    timeout-minutes: 115
+    steps:
+      - name: Checkout public distribution website
+        uses: actions/checkout@v4
+      - name: Checkout verified PRIVATE GOLOS snapshot
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ci/golos-0_2_5-build-20261113
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: private-ci
+          persist-credentials: false
+      - name: Prepare isolated GOLOS-only workspace
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = "private-ci/golos-ci-src"
+          $target = "$env:RUNNER_TEMP/GOLOS"
+          if (-not (Test-Path "$source/src-tauri/Cargo.toml")) { throw 'Private GOLOS snapshot missing' }
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          Copy-Item -Path "$source/*" -Destination $target -Recurse -Force
+          Copy-Item -Path "$source/.*" -Destination $target -Recurse -Force -ErrorAction SilentlyContinue
+          $config = Get-Content "$target/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          if ($config.version -ne '0.2.5') { throw 'GOLOS release version mismatch' }
+          if (-not (Select-String -Path "$target/src-tauri/src/commands.rs" -Pattern "STREAM_FINALIZED_FAST_INSERT" -Quiet)) { throw 'GOLOS 0.2.5 fast-insert fix missing' }
+          if (-not (Select-String -Path "$target/src/screens/LogScreen.tsx" -Pattern "followRef" -Quiet)) { throw 'GOLOS 0.2.5 log scroll fix missing' }
+          $buildScript = "$target/src-tauri/build.rs"
+          $buildCode = Get-Content $buildScript -Raw
+          $anchor = 'let commit = git_commit_label();'
+          if (-not $buildCode.Contains($anchor)) { throw 'Build ID override anchor changed' }
+          $buildCode = $buildCode.Replace($anchor, 'let commit = std::env::var("GOLOS_SOURCE_SHA_OVERRIDE").unwrap_or_else(|_| git_commit_label());')
+          [System.IO.File]::WriteAllText($buildScript, $buildCode)
+          "GOLOS_FIXED_SOURCE_SHA=d2235980" >> $env:GITHUB_ENV
+          "GOLOS_SOURCE_SHA_OVERRIDE=d2235980" >> $env:GITHUB_ENV
+          Write-Host "GOLOS 0.2.5 source snapshot verified; revision d2235980"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/GOLOS/src-tauri
+          cache-on-failure: true
+      - name: Generate original GOLOS brand icons
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tools = "$env:RUNNER_TEMP/golos-icon-tools"
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          & npm install --prefix $tools --no-audit --no-fund --silent sharp png-to-ico@2.1.8 *> "$env:RUNNER_TEMP/golos-icon-install.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Icon dependencies unavailable' }
+          $source = "$env:RUNNER_TEMP/GOLOS/src/assets/golos-app-icon.svg"
+          $iconDir = "$env:RUNNER_TEMP/GOLOS/src-tauri/icons"
+          New-Item -ItemType Directory -Force $iconDir | Out-Null
+          $js = @'
+          const fs=require('fs');
+          const path=require('path');
+          const root=process.env.RUNNER_TEMP;
+          const sharp=require(path.join(root,'golos-icon-tools/node_modules/sharp'));
+          const pngToIco=require(path.join(root,'golos-icon-tools/node_modules/png-to-ico'));
+          const src=fs.readFileSync(path.join(root,'GOLOS/src/assets/golos-app-icon.svg'));
+          const out=path.join(root,'GOLOS/src-tauri/icons');
+          (async()=> {
+            const buffers=await Promise.all([16,32,48,64,128,256].map(n=>sharp(src).resize(n,n).png().toBuffer()));
+            fs.writeFileSync(path.join(out,'icon.png'),buffers[buffers.length-1]);
+            fs.writeFileSync(path.join(out,'icon.ico'),await pngToIco(buffers));
+          })().catch(()=>process.exit(1));
+          '@
+          $script="$tools/generate.cjs"
+          [System.IO.File]::WriteAllText($script,$js)
+          node $script *> "$env:RUNNER_TEMP/golos-icon-generate.log"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$iconDir/icon.ico")) { throw 'GOLOS brand icon generation failed' }
+      - name: Verify frontend and architecture tests
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/GOLOS
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
+          npm run test:architecture
+          if ($LASTEXITCODE -ne 0) { throw 'Architecture tests failed' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
+      - name: Verify Rust on Windows
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/GOLOS/src-tauri
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cargo fmt
+          if ($LASTEXITCODE -ne 0) { throw 'Rust format failed' }
+          cargo fmt --check
+          if ($LASTEXITCODE -ne 0) { throw 'Rust formatting check failed' }
+          # ort-sys rc12 may receive dangling DLL symlinks from the Windows
+          # archive, so its fs::copy fallback crashes with OS error 3.
+          $metadata = cargo metadata --locked --format-version 1 | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed' }
+          $ort = @($metadata.packages | Where-Object { $_.name -eq 'ort-sys' -and $_.version -eq '2.0.0-rc.12' })
+          if ($ort.Count -ne 1) { throw 'ORT package metadata missing' }
+          $path = Join-Path (Split-Path $ort[0].manifest_path -Parent) 'build/dynamic_link.rs'
+          $code = Get-Content $path -Raw
+          $original = 'fs::copy(&lib_path, &out_path).unwrap();'
+          $replacement = 'if lib_path.exists() { fs::copy(&lib_path, &out_path).unwrap(); } else { println!("cargo:warning=ORT_DLL_DANGLING_SOURCE {}", lib_path.display()); }'
+          if (-not $code.Contains($original)) { throw 'Expected ORT rc12 fallback missing' }
+          [System.IO.File]::WriteAllText($path, $code.Replace($original, $replacement))
+          foreach ($folder in @('target/release','target/release/deps','target/release/examples')) {
+            New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          }
+          Write-Host 'Applied scoped ORT rc12 clean-runner workaround'
+          cargo test --release --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
+      - name: Build NSIS installer
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/GOLOS
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run tauri build
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Tauri installer compilation failed' }
+      - name: Verify installer and publish to website
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setups = @(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
+          if ($setups.Count -ne 1) { throw "Expected one installer, found $($setups.Count)" }
+          $asset = "GOLOS_0.2.5_x64-setup.exe"
+          Copy-Item $setups[0].FullName $asset -Force
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $asset).Path)
+          if ($bytes.Length -lt 5000000 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) {
+            throw 'Invalid or unexpectedly small Windows installer'
+          }
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          $tag = 'golos-v0.2.5-windows'
+          gh release create $tag $asset --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.5 Windows (fast streaming and logs)" --notes "Windows release $($env:GOLOS_FIXED_SOURCE_SHA). Finalized Nemotron first-pass insert, Parakeet follow-up and corrected log autoscroll. Windows tests and installer build passed. Site SHA256: $hash" --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
+          New-Item -ItemType Directory -Force downloads | Out-Null
+          New-Item -ItemType Directory -Force golos | Out-Null
+          Copy-Item $asset downloads/GOLOS-Setup.exe -Force
+          "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
+          $info = @{
+            name = $asset
+            revision = $env:GOLOS_FIXED_SOURCE_SHA
+            sha256 = $hash
+            sizeBytes = $bytes.Length
+            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+            channel = 'preview'
+            version = '0.2.5'
+          }
+          $info | ConvertTo-Json | Set-Content -Encoding utf8 golos/release.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
+          git commit -m "Publish GOLOS 0.2.5 fixed Windows installer ($($env:GOLOS_FIXED_SOURCE_SHA))"
+          if ($LASTEXITCODE -ne 0) { throw 'Site commit failed' }
+          git pull --rebase origin main
+          if ($LASTEXITCODE -ne 0) { throw 'Site rebase failed' }
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Site push failed' }
+          Write-Host "PUBLISHED https://$($env:GITHUB_REPOSITORY_OWNER).github.io/kadr-public/golos/"
+          Write-Host "SHA256 $hash"
