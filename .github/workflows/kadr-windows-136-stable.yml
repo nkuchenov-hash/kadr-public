@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: a3339ef59de8ef0bbc73d5d0e45a878933f8b90b
+      SOURCE_SHA: f6e3af79357db7f898d8d6fb2d82556611dd98f6
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact private KADR source
@@ -106,6 +106,14 @@ jobs:
             }
           }
 
+      - name: Archive compiled CI installer for runtime investigation
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-1.0.36-compiled-not-published
+          path: source/build/installer/KADR-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Smoke test real installed EXE, repeated tray opens and clean startup
         working-directory: source
         shell: pwsh
@@ -154,7 +162,7 @@ jobs:
 
           Windows CI and installable EXE runtime smoke (repeated tray open/close) passed.
           On-device Windows configurations and actual phone transfer still require acceptance.
-          Private source: a3339ef59de8ef0bbc73d5d0e45a878933f8b90b
+          Private source: f6e3af79357db7f898d8d6fb2d82556611dd98f6
           '@ | Set-Content -Path release-notes.md -Encoding utf8
           $repo = $env:GITHUB_REPOSITORY
           gh release view kadr-windows-1.0.36 --repo $repo *> $null
@@ -214,7 +222,7 @@ jobs:
           now=datetime.now(timezone.utc)
           manifest.update(current_version='1.0.36',channel='stable',release_date=now.strftime('%Y-%m-%d'),
               published_at=now.isoformat(),
-              source_commit='a3339ef59de8ef0bbc73d5d0e45a878933f8b90b',
+              source_commit='f6e3af79357db7f898d8d6fb2d82556611dd98f6',
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36')
           manifest['windows'].update(version='1.0.36',build=36,
               download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
