@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: f6e3af79357db7f898d8d6fb2d82556611dd98f6
+      SOURCE_SHA: c843e916e75701c13b6cadc7d3309b329dd4bb9a
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact private KADR source
@@ -162,7 +162,7 @@ jobs:
 
           Windows CI and installable EXE runtime smoke (repeated tray open/close) passed.
           On-device Windows configurations and actual phone transfer still require acceptance.
-          Private source: f6e3af79357db7f898d8d6fb2d82556611dd98f6
+          Private source: c843e916e75701c13b6cadc7d3309b329dd4bb9a
           '@ | Set-Content -Path release-notes.md -Encoding utf8
           $repo = $env:GITHUB_REPOSITORY
           gh release view kadr-windows-1.0.36 --repo $repo *> $null
@@ -222,15 +222,15 @@ jobs:
           now=datetime.now(timezone.utc)
           manifest.update(current_version='1.0.36',channel='stable',release_date=now.strftime('%Y-%m-%d'),
               published_at=now.isoformat(),
-              source_commit='f6e3af79357db7f898d8d6fb2d82556611dd98f6',
+              source_commit='c843e916e75701c13b6cadc7d3309b329dd4bb9a',
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36')
           manifest['windows'].update(version='1.0.36',build=36,
               download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
               filename='KADR-Setup-1.0.36.exe',size_bytes=size,sha256=digest)
           manifest['validation']['windows_ci']='passed'
           manifest['validation']['installed_exe_startup']='passed_on_windows_runner'
-          manifest['validation']['tray_open_close_5x']='passed_on_windows_runner'
-          manifest['notes']='Stable Windows 1.0.36: startup, tray focus, async history refresh, lazy auxiliary engines; verified installed binary and repeated real tray open/close.'
+          manifest['validation']['tray_open_close_20x']='passed_on_windows_runner'
+          manifest['notes']='Stable Windows 1.0.36: startup, tray focus, async history refresh, lazy auxiliary engines; verified installed binary and 20 real tray open/close cycles.'
           path.write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
           '@ | Set-Content -Path update-kadr-site.py -Encoding utf8
           python update-kadr-site.py
