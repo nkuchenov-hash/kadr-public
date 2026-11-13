@@ -1,0 +1,93 @@
+name: Isolate KADR Flutter engine startup crash
+on:
+  push:
+    paths:
+      - .github/workflows/kadr-engine-isolation.yml
+permissions:
+  contents: read
+jobs:
+  isolate:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, no-editor, no-tray, only-main]
+    runs-on: windows-2022
+    timeout-minutes: 35
+    env:
+      SOURCE_SHA: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
+    steps:
+      - name: Checkout KADR 1.0.36 production candidate
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ${{ env.SOURCE_SHA }}
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Toggle only native startup engines for root-cause isolation
+        shell: pwsh
+        run: |
+          $path = 'source/windows/runner/flutter_window.cpp'
+          $text = Get-Content $path -Raw
+          $mode = '${{ matrix.mode }}'
+          $editor = @'
+            if (!KadrCaptureEditorRuntime::Warm(project_)) {
+              return false;
+            }
+          '@
+          if ($mode -in @('no-editor','only-main')) {
+            if (-not $text.Contains($editor.Trim())) { throw 'Editor warm signature changed' }
+            $text = $text.Replace($editor.Trim(), '/* diagnostic: editor warm disabled */')
+          }
+          if ($mode -in @('no-tray','only-main')) {
+            $tray = 'KadrTrayPopupHost::Setup(flutter_controller_->engine()->messenger(),' + "`r`n" + '                           project_);'
+            if (-not $text.Contains($tray)) {
+              $tray = 'KadrTrayPopupHost::Setup(flutter_controller_->engine()->messenger(),' + "`n" + '                           project_);'
+            }
+            if (-not $text.Contains($tray)) { throw 'Tray setup signature changed' }
+            $text = $text.Replace($tray, '/* diagnostic: tray host disabled */')
+          }
+          if ($mode -eq 'only-main') {
+            $text = $text.Replace('KadrSettingsHost::Setup(flutter_controller_->engine()->messenger(), project_);', '/* diagnostic: settings disabled */')
+            $text = $text.Replace('KadrHistoryHost::Setup(flutter_controller_->engine()->messenger(), project_);', '/* diagnostic: history disabled */')
+          }
+          Set-Content -Path $path -Value $text -Encoding utf8
+          Write-Host "KADR native startup isolation mode=$mode"
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Build Windows Release
+        working-directory: source
+        run: flutter build windows --release
+      - name: Observe real Windows process idle lifetime with crash event details
+        working-directory: source
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'build/windows/x64/runner/Release/kadr.exe').Path
+          $dir = Split-Path $exe
+          $start = Get-Date
+          $p = Start-Process -FilePath $exe -WorkingDirectory $dir -ArgumentList '--startup' -PassThru
+          try {
+            $alive = 0
+            for ($i = 1; $i -le 20; $i++) {
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if ($p.HasExited) {
+                Write-Host "ENGINE_ISOLATION_RESULT mode=${{ matrix.mode }} crashed_after_seconds=$i exit=$($p.ExitCode)"
+                Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$start} -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Message -match 'kadr.exe' } |
+                  Select-Object -First 3 TimeCreated,Message | Format-List | Out-String | Write-Host
+                throw "CRASH mode=${{ matrix.mode }}"
+              }
+              $alive = $i
+            }
+            Write-Host "ENGINE_ISOLATION_RESULT mode=${{ matrix.mode }} SURVIVED_$($alive)_SECONDS"
+          } finally {
+            $p.Refresh()
+            if (-not $p.HasExited) { Stop-Process $p.Id -Force -ErrorAction SilentlyContinue }
+          }
