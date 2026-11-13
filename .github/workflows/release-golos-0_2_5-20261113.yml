@@ -121,7 +121,7 @@ jobs:
           $path = Join-Path (Split-Path $ort[0].manifest_path -Parent) 'build/dynamic_link.rs'
           $code = Get-Content $path -Raw
           $original = 'fs::copy(&lib_path, &out_path).unwrap();'
-          $replacement = 'if lib_path.exists() { fs::copy(&lib_path, &out_path).unwrap(); } else { println!("cargo:warning=ORT_DLL_DANGLING_SOURCE {}", lib_path.display()); }'
+          $replacement = 'if lib_path.exists() { fs::create_dir_all(out_path.parent().unwrap()).unwrap(); fs::copy(&lib_path, &out_path).unwrap_or_else(|e| panic!("ORT_COPY_FAIL source={} destination={} error={e}", lib_path.display(), out_path.display())); } else { println!("cargo:warning=ORT_DLL_DANGLING_SOURCE {}", lib_path.display()); }'
           if (-not $code.Contains($original)) { throw 'Expected ORT rc12 fallback missing' }
           [System.IO.File]::WriteAllText($path, $code.Replace($original, $replacement))
           foreach ($folder in @('target/release','target/release/deps','target/release/examples')) {
