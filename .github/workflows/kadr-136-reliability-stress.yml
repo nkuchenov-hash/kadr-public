@@ -1,0 +1,107 @@
+name: KADR Windows real-run reliability stress
+on:
+  push:
+    paths: [.github/workflows/kadr-136-reliability-stress.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  stress:
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [v134, v136]
+    runs-on: windows-2022
+    timeout-minutes: 22
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Retrieve exact installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer | Out-Null
+          if ('${{ matrix.release }}' -eq 'v134') {
+            gh release download kadr-windows-1.0.34 --repo $env:GITHUB_REPOSITORY --pattern KADR-Setup-1.0.34.exe --dir installer
+            $name='KADR-Setup-1.0.34.exe'
+          } else {
+            gh run download 43410737077 --repo $env:GITHUB_REPOSITORY --name KADR-1.0.36-compiled-not-published --dir installer
+            $name='KADR-Setup.exe'
+          }
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "installer/$name")) { throw "Installer not found for ${{ matrix.release }}" }
+          "INSTALLER_NAME=$name" >> $env:GITHUB_ENV
+      - name: Install stable/candidate EXE
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'KadrReliability'
+          $installer=(Resolve-Path "installer/$env:INSTALLER_NAME").Path
+          $proc=Start-Process $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dest") -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw 'Install failed' }
+          "INSTALL_PATH=$dest" >> $env:GITHUB_ENV
+      - name: 12 separate 12-second startups plus 3 tray reopen cycles
+        shell: pwsh
+        run: |
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class KadrProbe {
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)]
+            public static extern IntPtr FindWindow(string cls, string title);
+            [DllImport("user32.dll")]
+            public static extern bool IsWindowVisible(IntPtr hwnd);
+            [DllImport("user32.dll")]
+            public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+            [DllImport("user32.dll")]
+            public static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint m, IntPtr w, IntPtr l, uint flags, uint t, out IntPtr result);
+            [DllImport("user32.dll")]
+            public static extern IntPtr SendMessage(IntPtr hwnd, uint m, IntPtr w, IntPtr l);
+          }
+          '@
+          $failed = 0
+          $opens = 0
+          $started = Get-Date
+          foreach ($n in 1..12) {
+            $p=Start-Process (Join-Path $env:INSTALL_PATH 'kadr.exe') -WorkingDirectory $env:INSTALL_PATH -ArgumentList '--startup' -PassThru
+            $crashed = $false
+            $broker = [IntPtr]::Zero
+            try {
+              foreach ($sec in 1..12) {
+                Start-Sleep -Seconds 1
+                $p.Refresh()
+                if ($p.HasExited) {
+                  $failed++
+                  $crashed=$true
+                  Write-Host "KADR_START_FAILURE version=${{ matrix.release }} iteration=$n sec=$sec exit=$($p.ExitCode)"
+                  break
+                }
+                $candidate=[KadrProbe]::FindWindow('FLUTTER_RUNNER_WIN32_WINDOW', $null)
+                [uint32]$owner=0
+                if ($candidate -ne [IntPtr]::Zero) {
+                  [void][KadrProbe]::GetWindowThreadProcessId($candidate,[ref]$owner)
+                  if ($owner -eq $p.Id) { $broker = $candidate }
+                }
+                if ($sec -ge 4 -and $broker -ne [IntPtr]::Zero -and ($sec % 3) -eq 1) {
+                  $ack=[IntPtr]::Zero
+                  [void][KadrProbe]::SendMessageTimeout($broker, [uint32](0x8000+0x4B),
+                    [IntPtr]::Zero,[IntPtr]::Zero,[uint32]3,[uint32]1500,[ref]$ack)
+                  Start-Sleep -Milliseconds 400
+                  $p.Refresh()
+                  if ($p.HasExited) {
+                    $failed++;$crashed=$true
+                    Write-Host "KADR_TRAY_CRASH version=${{ matrix.release }} iteration=$n sec=$sec exit=$($p.ExitCode)"
+                    break
+                  }
+                  $tray=[KadrProbe]::FindWindow('KADR_TRAY_POPUP_HOST',$null)
+                  if ($tray -ne [IntPtr]::Zero -and [KadrProbe]::IsWindowVisible($tray)) {
+                    $opens++
+                    [void][KadrProbe]::SendMessage($tray,[uint32]0x10,[IntPtr]::Zero,[IntPtr]::Zero)
+                  }
+                }
+              }
+              if (-not $crashed) { Write-Host "KADR_START_SUCCESS version=${{ matrix.release }} iteration=$n opened=$opens" }
+            } finally {
+              $p.Refresh()
+              if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            }
+          }
+          Write-Host "STRESS_RESULT version=${{ matrix.release }} failures=$failed/12 opened=$opens"
+          if ($failed -gt 0 -or $opens -lt 6) { throw 'Real GUI startup/tray reliability requirement failed' }
