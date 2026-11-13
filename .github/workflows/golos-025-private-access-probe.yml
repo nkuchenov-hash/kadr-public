@@ -13,15 +13,15 @@ jobs:
       - name: Checkout private GOLOS source without printing contents
         uses: actions/checkout@v4
         with:
-          repository: nkuchenov-hash/GOLOS
-          ref: d2235980226da9b266b9b740200f05497fb59483
+          repository: nkuchenov-hash/KADR
+          ref: ci/golos-0_1_4-fixed-20261023
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
       - name: Confirm source and version only
         shell: bash
         run: |
-          test -f source/src-tauri/Cargo.toml
-          test -f source/src-tauri/tauri.conf.json
-          python3 -c 'import json; assert json.load(open("source/src-tauri/tauri.conf.json"))["version"] == "0.2.5"'
-          echo "GOLOS_025_PRIVATE_CHECKOUT_OK"
+          test -f source/golos-ci-src/src-tauri/Cargo.toml
+          test -f source/golos-ci-src/src-tauri/tauri.conf.json
+          python3 -c 'import json; assert json.load(open("source/golos-ci-src/src-tauri/tauri.conf.json"))["version"] == "0.1.4"'
+          echo "KADR_PRIVATE_RELAY_CHECKOUT_OK"
