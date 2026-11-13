@@ -1,0 +1,238 @@
+name: Verify and publish KADR Windows 1.0.36 stable
+on:
+  push:
+    paths:
+      - '.github/workflows/kadr-windows-136-stable.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: kadr-windows-136-stable
+  cancel-in-progress: false
+jobs:
+  verify-and-publish:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    env:
+      SOURCE_SHA: a3339ef59de8ef0bbc73d5d0e45a878933f8b90b
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact private KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ${{ env.SOURCE_SHA }}
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+          path: source
+
+      - name: Validate pinned source and stable version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong private KADR source SHA' }
+          if ((Get-Content source/pubspec.yaml -Raw) -notmatch '(?m)^version:\s*1\.0\.36\+36\s*$') { throw 'Wrong pubspec version' }
+          if ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -notmatch "version = '1\.0\.36'") { throw 'Wrong About version' }
+          if ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -notmatch "channel = 'Stable'") { throw 'Not a stable build' }
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: source
+        run: flutter pub get
+
+      - name: Analyze source for errors
+        working-directory: source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Verify tray startup and protected editor regressions
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/tray_startup_performance_contract_test.dart test/tray_recovery_after_capture_test.dart test/tray_stale_capture_recovery_test.dart test/tray_suppression_appstate_test.dart test/history_recent_recovery_test.dart test/history_host_sync_test.dart test/history_persistence_test.dart test/version_contract_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Tray/history/startup tests failed' }
+          flutter test test/p0_tray_hotkey_overlay_test.dart test/p0_native_region_capture_test.dart test/capture_editor_locked_contract_test.dart test/manual_scroll_capture_test.dart test/manual_scroll_export_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Capture/editor/scroll tests failed' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/verify_capture_editor_lock.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Capture editor lock failed' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/verify_working_ui_baseline.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Working UI baseline failed' }
+
+      - name: Build native Windows Release
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Release compilation failed' }
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          if (-not (Test-Path $exe)) { throw 'kadr.exe not found' }
+          $version = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $version.StartsWith('1.0.36')) { throw "Wrong Windows executable version: $version" }
+
+      - name: Package Windows installer
+        working-directory: source
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup unavailable' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/kadr.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup build failed' }
+          if (-not (Test-Path 'build/installer/KADR-Setup.exe')) { throw 'Missing installer' }
+
+      - name: Install KADR on Windows agent and verify exact binaries
+        working-directory: source
+        shell: pwsh
+        run: |
+          $exe = 'build/windows/x64/runner/Release/kadr.exe'
+          $setup = (Resolve-Path 'build/installer/KADR-Setup.exe').Path
+          $target = Join-Path $env:RUNNER_TEMP 'KADR-1.0.36-verified'
+          $installed = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$target") -PassThru -Wait
+          if ($installed.ExitCode -ne 0) { throw "Installer failed with exit code $($installed.ExitCode)" }
+          if (-not (Test-Path (Join-Path $target 'kadr.exe'))) { throw 'Installed kadr.exe missing' }
+          $expected = (Get-FileHash $exe -Algorithm SHA256).Hash
+          $actual = (Get-FileHash (Join-Path $target 'kadr.exe') -Algorithm SHA256).Hash
+          if ($expected -ne $actual) { throw 'Installed kadr.exe does not match Release build' }
+          $srcApp = 'build/windows/x64/runner/Release/data/app.so'
+          $dstApp = Join-Path $target 'data/app.so'
+          if ((Test-Path $srcApp) -and (Test-Path $dstApp)) {
+            if ((Get-FileHash $srcApp -Algorithm SHA256).Hash -ne (Get-FileHash $dstApp -Algorithm SHA256).Hash) {
+              throw 'Installed Dart app.so differs from built Release'
+            }
+          }
+
+      - name: Smoke test real installed EXE, repeated tray opens and clean startup
+        working-directory: source
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'KADR-1.0.36-verified'
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -ReleaseDir $target -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
+          if ($LASTEXITCODE -ne 0) { throw 'Real installed KADR startup or tray smoke test failed. DO NOT PUBLISH' }
+
+      - name: Record immutable validated installer
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.36.exe
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup.exe
+          $hash = (Get-FileHash KADR-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Setup-1.0.36.exe" | Set-Content -Encoding ascii KADR-Setup-1.0.36.sha256
+          "$hash  KADR-Setup.exe" | Set-Content -Encoding ascii KADR-Setup.sha256
+          $size = (Get-Item KADR-Setup.exe).Length
+          if ($size -lt 10000000) { throw 'Installer unexpectedly small' }
+          "KADR_136_SHA256=$hash" >> $env:GITHUB_ENV
+
+      - name: Keep validated installer as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Windows-1.0.36-validated
+          path: |
+            KADR-Setup.exe
+            KADR-Setup.sha256
+            KADR-Setup-1.0.36.exe
+            KADR-Setup-1.0.36.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish stable 1.0.36 and replace windows-latest
+        shell: pwsh
+        run: |
+          @'
+          # KADR 1.0.36 Windows — stable
+
+          Исправлено открытие меню в трее после запуска и скриншота:
+          - Показ из памяти без ожидания сканирования снимков на диске
+          - Фоновое обновление миниатюр без повторного открытия окна
+          - Запуск без блокировки сетевым подключением Android
+          - Настройки и история загружаются при обращении, не при запуске
+          - Отдельное окно трея больше не закрывается из-за смены фокуса скрытого основного окна
+          - Сохранены редактор, длинные скриншоты PDF/PNG, видеозапись и мобильная синхронизация
+
+          Windows CI and installable EXE runtime smoke (repeated tray open/close) passed.
+          On-device Windows configurations and actual phone transfer still require acceptance.
+          Private source: a3339ef59de8ef0bbc73d5d0e45a878933f8b90b
+          '@ | Set-Content -Path release-notes.md -Encoding utf8
+          $repo = $env:GITHUB_REPOSITORY
+          gh release view kadr-windows-1.0.36 --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit kadr-windows-1.0.36 --repo $repo --title 'KADR Windows 1.0.36 — Stable startup and tray' --notes-file release-notes.md --latest
+            gh release upload kadr-windows-1.0.36 KADR-Setup-1.0.36.exe KADR-Setup-1.0.36.sha256 --clobber --repo $repo
+          } else {
+            gh release create kadr-windows-1.0.36 KADR-Setup-1.0.36.exe KADR-Setup-1.0.36.sha256 --repo $repo --title 'KADR Windows 1.0.36 — Stable startup and tray' --notes-file release-notes.md --latest
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish versioned verified installer' }
+          gh release view windows-latest --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit windows-latest --repo $repo --title 'KADR Windows 1.0.36 — Stable' --notes-file release-notes.md --latest
+            gh release upload windows-latest KADR-Setup.exe KADR-Setup.sha256 --clobber --repo $repo
+          } else {
+            gh release create windows-latest KADR-Setup.exe KADR-Setup.sha256 --repo $repo --title 'KADR Windows 1.0.36 — Stable' --notes-file release-notes.md --latest
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish verified windows-latest installer' }
+          foreach ($tag in @('kadr-windows-1.0.36','windows-latest')) {
+            $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw "Cannot verify $tag" }
+            $name = if ($tag -eq 'windows-latest') { 'KADR-Setup.exe' } else { 'KADR-Setup-1.0.36.exe' }
+            $asset = $release.assets | Where-Object { $_.name -eq $name } | Select-Object -First 1
+            if (-not $asset -or $asset.size -lt 10000000 -or $asset.digest -ne "sha256:$env:KADR_136_SHA256") {
+              throw "Verified release asset is missing or has incorrect checksum: $tag"
+            }
+          }
+
+      - name: Checkout KADR public website for stable version update
+        uses: actions/checkout@v4
+        with:
+          path: website
+          persist-credentials: true
+
+      - name: Update website download and version manifest
+        shell: pwsh
+        run: |
+          @'
+          import hashlib, json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          root=Path('website')
+          file=Path('KADR-Setup-1.0.36.exe')
+          digest=hashlib.sha256(file.read_bytes()).hexdigest()
+          size=file.stat().st_size
+          old='kadr-windows-1.0.34/KADR-Setup-1.0.34.exe'
+          new='kadr-windows-1.0.36/KADR-Setup-1.0.36.exe'
+          for relative in ('index.html','releases/index.html'):
+              path=root/relative
+              text=path.read_text(encoding='utf-8')
+              if relative=='index.html' and old not in text and new not in text:
+                  raise SystemExit('Refusing to replace an unexpected website download link')
+              text=text.replace(old,new).replace('Windows 1.0.34','Windows 1.0.36').replace('v1.0.34','v1.0.36')
+              path.write_text(text,encoding='utf-8')
+          path=root/'version.json'
+          manifest=json.loads(path.read_text(encoding='utf-8'))
+          now=datetime.now(timezone.utc)
+          manifest.update(current_version='1.0.36',channel='stable',release_date=now.strftime('%Y-%m-%d'),
+              published_at=now.isoformat(),
+              source_commit='a3339ef59de8ef0bbc73d5d0e45a878933f8b90b',
+              release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36')
+          manifest['windows'].update(version='1.0.36',build=36,
+              download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
+              filename='KADR-Setup-1.0.36.exe',size_bytes=size,sha256=digest)
+          manifest['validation']['windows_ci']='passed'
+          manifest['validation']['installed_exe_startup']='passed_on_windows_runner'
+          manifest['validation']['tray_open_close_5x']='passed_on_windows_runner'
+          manifest['notes']='Stable Windows 1.0.36: startup, tray focus, async history refresh, lazy auxiliary engines; verified installed binary and repeated real tray open/close.'
+          path.write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          '@ | Set-Content -Path update-kadr-site.py -Encoding utf8
+          python update-kadr-site.py
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to update public site manifest' }
+          git -C website config user.name "github-actions[bot]"
+          git -C website config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C website add index.html releases/index.html version.json
+          git -C website diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Website diff check failed' }
+          git -C website commit -m "site: publish verified stable KADR Windows 1.0.36"
+          if ($LASTEXITCODE -ne 0) { throw 'Website commit failed' }
+          git -C website push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Website deployment failed' }
