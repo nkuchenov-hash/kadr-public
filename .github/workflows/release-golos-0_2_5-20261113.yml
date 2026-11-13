@@ -128,81 +128,25 @@ jobs:
             New-Item -ItemType Directory -Force -Path $folder | Out-Null
           }
           Write-Host 'Applied scoped ORT rc12 clean-runner workaround'
-          # Cargo builds the test EXE under target/release/build/golos/.../out
-          # on this snapshot. A normal test invocation cannot load its native
-          # transcribe / ggml / ORT DLLs from the sibling build output folders.
-          # Compile tests first, stage the actual DLLs, then run all tests.
+          # Build test binaries before placing runtime DLL dependencies.
           cargo test --release --no-run
           if ($LASTEXITCODE -ne 0) { throw 'Rust test compilation failed' }
-          $buildRoot = (Resolve-Path 'target/release/build').Path
-          $nativeDlls = @(Get-ChildItem $buildRoot -File -Recurse -Filter '*.dll' -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '^(transcribe|ggml.*|onnxruntime.*|DirectML)\.dll
-      - name: Build NSIS installer
-        shell: pwsh
-        working-directory: ${{ runner.temp }}/GOLOS
-        run: |
-          $ErrorActionPreference = 'Stop'
-          npm run tauri build
-          if ($LASTEXITCODE -ne 0) { throw 'Windows Tauri installer compilation failed' }
-      - name: Verify installer and publish to website
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $setups = @(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
-          if ($setups.Count -ne 1) { throw "Expected one installer, found $($setups.Count)" }
-          $asset = "GOLOS_0.2.5_x64-setup.exe"
-          Copy-Item $setups[0].FullName $asset -Force
-          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $asset).Path)
-          if ($bytes.Length -lt 5000000 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) {
-            throw 'Invalid or unexpectedly small Windows installer'
-          }
-          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
-          $tag = 'golos-v0.2.5-windows'
-          gh release create $tag $asset --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.5 Windows (fast streaming and logs)" --notes "Windows release $($env:GOLOS_FIXED_SOURCE_SHA). Finalized Nemotron first-pass insert, Parakeet follow-up and corrected log autoscroll. Windows tests and installer build passed. Site SHA256: $hash" --prerelease
-          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
-          New-Item -ItemType Directory -Force downloads | Out-Null
-          New-Item -ItemType Directory -Force golos | Out-Null
-          Copy-Item $asset downloads/GOLOS-Setup.exe -Force
-          "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
-          $info = @{
-            name = $asset
-            revision = $env:GOLOS_FIXED_SOURCE_SHA
-            sha256 = $hash
-            sizeBytes = $bytes.Length
-            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
-            channel = 'preview'
-            version = '0.2.5'
-          }
-          $info | ConvertTo-Json | Set-Content -Encoding utf8 golos/release.json
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
-          git commit -m "Publish GOLOS 0.2.5 fixed Windows installer ($($env:GOLOS_FIXED_SOURCE_SHA))"
-          if ($LASTEXITCODE -ne 0) { throw 'Site commit failed' }
-          git pull --rebase origin main
-          if ($LASTEXITCODE -ne 0) { throw 'Site rebase failed' }
-          git push origin HEAD:main
-          if ($LASTEXITCODE -ne 0) { throw 'Site push failed' }
-          Write-Host "PUBLISHED https://$($env:GITHUB_REPOSITORY_OWNER).github.io/kadr-public/golos/"
-          Write-Host "SHA256 $hash"
- })
-          if ($nativeDlls.Count -lt 2 -or @($nativeDlls | Where-Object Name -eq 'transcribe.dll').Count -eq 0) {
-            throw "Missing native speech runtime DLLs after test build: $($nativeDlls.Name -join ', ')"
-          }
-          $testBinaries = @(Get-ChildItem 'target/release' -Recurse -File -Filter 'golos-*.exe' -ErrorAction SilentlyContinue)
-          if ($testBinaries.Count -eq 0) { throw 'Compiled golos test EXE missing' }
-          $targetDirs = @($testBinaries | ForEach-Object DirectoryName | Sort-Object -Unique)
-          $targetDirs += (Resolve-Path 'target/release/deps').Path
-          $targetDirs += (Resolve-Path 'target/release').Path
-          foreach ($targetDir in ($targetDirs | Sort-Object -Unique)) {
-            foreach ($dll in $nativeDlls) {
-              $dest = Join-Path $targetDir $dll.Name
+          $root = (Resolve-Path 'target/release').Path
+          $dllFiles = @(Get-ChildItem (Join-Path $root 'build') -Recurse -File -Filter '*.dll' -ErrorAction SilentlyContinue)
+          $dllFiles = @($dllFiles | Where-Object { $_.Name.StartsWith('transcribe') -or $_.Name.StartsWith('ggml') -or $_.Name.StartsWith('onnxruntime') -or $_.Name -eq 'DirectML.dll' })
+          if (-not @($dllFiles | Where-Object { $_.Name -eq 'transcribe.dll' }).Count) { throw 'Transcribe runtime library missing after compile' }
+          $exeFiles = @(Get-ChildItem $root -Recurse -File -Filter 'golos-*.exe' -ErrorAction SilentlyContinue)
+          if ($exeFiles.Count -lt 1) { throw 'No compiled GOLOS test executable' }
+          $dirs = @($exeFiles | ForEach-Object { $_.DirectoryName } | Sort-Object -Unique)
+          $dirs += (Join-Path $root 'deps')
+          $dirs += $root
+          foreach ($folder in ($dirs | Sort-Object -Unique)) {
+            foreach ($dll in $dllFiles) {
+              $dest = Join-Path $folder $dll.Name
               if (-not (Test-Path $dest)) { Copy-Item -LiteralPath $dll.FullName -Destination $dest -Force }
             }
           }
-          Write-Host "DLLs staged into $($targetDirs.Count) test/runtime directories: $($nativeDlls.Name | Sort-Object -Unique -join ', ')"
+          Write-Host ('Prepared DLLs for test process: ' + (($dllFiles | Select-Object -ExpandProperty Name -Unique) -join ', '))
           cargo test --release
           if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
       - name: Build NSIS installer
