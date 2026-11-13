@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.34",
+  "current_version": "1.0.36",
   "channel": "stable",
-  "release_date": "2026-10-26",
-  "published_at": "2026-11-12T12:45:41.9030442+00:00",
-  "source_commit": "c7ff2fedd8048dfec845483778557ac8068734b8",
-  "verification_run": "https://github.com/nkuchenov-hash/KADR/actions/runs/43219342515",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.34",
+  "release_date": "2026-11-13",
+  "published_at": "2026-11-13T12:02:47Z",
+  "source_commit": "b0069f1f855bb92d49b50d331bf063115ed9e227",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/43421635005",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36",
   "windows": {
-    "version": "1.0.34",
-    "build": 34,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.34/KADR-Setup-1.0.34.exe",
-    "filename": "KADR-Setup-1.0.34.exe",
-    "size_bytes": 12759055,
-    "sha256": "6b55cde5503132e4d230e1fa212220b7914787ca654af5ca3acaadfa04a9fc2c",
+    "version": "1.0.36",
+    "build": 36,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.36/KADR-Setup-1.0.36.exe",
+    "filename": "KADR-Setup-1.0.36.exe",
+    "size_bytes": 12820710,
+    "sha256": "4b4bf0c7cac95e0dd25d743eb89424e986b1f6b628ee40337b6276255fa33be6",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -41,8 +41,10 @@
     "desktop_shortcut_activation": "not-verified",
     "physical_screencast": "not-verified",
     "physical_long_scroll_cursor": "not-verified",
-    "physical_smart_pdf_pagination": "not-verified"
+    "physical_smart_pdf_pagination": "not-verified",
+    "installed_exe_startup": "passed_on_windows_runner",
+    "tray_open_close_110x": "passed_on_windows_runner"
   },
-  "notes": "Safety rollback to Windows 1.0.34: Windows 1.0.35 was reported to crash at launch and to regress the tray after screenshot. 1.0.35 is withdrawn from latest distribution pending a verified fix. Physical runtime stability of 1.0.34 is not independently confirmed.",
+  "notes": "KADR Windows 1.0.36 stable. Lazy auxiliary Flutter hosts, Flutter 3.47.9. Verified Windows installer installation with matching EXE and app.so SHA256; 11 Windows cold-start cycles and 110 real native tray open/close cycles successful. Physical screenshot/editor, long scrolling, and Android transfer on the user's PC remain to be checked.",
   "current_version_scope": "windows"
 }
