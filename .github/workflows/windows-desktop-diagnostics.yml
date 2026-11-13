@@ -1,0 +1,40 @@
+name: Windows interactive desktop diagnostics
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-desktop-diagnostics.yml'
+permissions:
+  contents: read
+jobs:
+  desktop:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - name: Inspect runner GUI desktop and interactive session
+        shell: pwsh
+        run: |
+          Write-Host "User: $(whoami)"
+          Write-Host "UserInteractive: $([Environment]::UserInteractive)"
+          Write-Host "SessionName=$env:SESSIONNAME"
+          Write-Host "Winsta0 expected for GUI access"
+          Get-Process -Name explorer,dwm -ErrorAction SilentlyContinue |
+            Select-Object Id,ProcessName,SessionId,Responding,MainWindowHandle | Format-Table | Out-String | Write-Host
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          public class WinDesktopProbe {
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)]
+            public static extern IntPtr FindWindow(string cls, string title);
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetDesktopWindow();
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetShellWindow();
+          }
+          '@
+          Write-Host "DesktopHWND=$([WinDesktopProbe]::GetDesktopWindow())"
+          Write-Host "ShellHWND=$([WinDesktopProbe]::GetShellWindow())"
+          Write-Host "TaskbarHWND=$([WinDesktopProbe]::FindWindow('Shell_TrayWnd', $null))"
+          Write-Host "FlutterClassHWND=$([WinDesktopProbe]::FindWindow('FLUTTER_RUNNER_WIN32_WINDOW', $null))"
+          if ([WinDesktopProbe]::FindWindow('Shell_TrayWnd', $null) -eq [IntPtr]::Zero) {
+            Write-Host 'NO_EXPLORER_TRAY_IN_CURRENT_DESKTOP: interactive system tray smoke may not be valid'
+          }
