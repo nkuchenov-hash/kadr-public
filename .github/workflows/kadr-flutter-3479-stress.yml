@@ -32,6 +32,19 @@ jobs:
           for ($i=1; $i -le 10; $i++) {
             Write-Host "FLUTTER3479_RELIABILITY_ITERATION $i / 10"
             powershell -NoProfile -ExecutionPolicy Bypass -File source/tool/windows_startup_tray_smoke.ps1 -ReleaseDir $runtime -TrayCycles 10 -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
-            if ($LASTEXITCODE -ne 0) { throw "Flutter 3.47.9 KADR failed runtime iteration $i" }
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Runtime diagnostic: missing/closed tray in iteration $i"
+              $log = Join-Path $env:LOCALAPPDATA 'KADR/kadr.log'
+              if (Test-Path $log) {
+                Write-Host 'Last KADR log events:'
+                Get-Content $log -Tail 180 | Out-String | Write-Host
+              } else {
+                Write-Host 'No KADR log file at expected location'
+              }
+              Get-Process -Name kadr,explorer,dwm -ErrorAction SilentlyContinue |
+                Select-Object ProcessName,Id,SessionId,Responding,Handles |
+                Format-Table | Out-String | Write-Host
+              throw "Flutter 3.47.9 KADR failed runtime iteration $i"
+            }
           }
           Write-Host 'KADR_FLUTTER_3479_STABLE_10_PROCESSES_100_TRAY_CYCLES'
