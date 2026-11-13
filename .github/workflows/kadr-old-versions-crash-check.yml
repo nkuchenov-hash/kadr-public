@@ -1,0 +1,53 @@
+name: KADR 1.0.32 vs 1.0.33 historical crash baseline
+on:
+  push:
+    paths: [.github/workflows/kadr-old-versions-crash-check.yml]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        ver: ['1.0.32','1.0.33']
+    runs-on: windows-2022
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download exact historical installer
+        shell: pwsh
+        run: |
+          gh release download "kadr-windows-${{ matrix.ver }}" --repo $env:GITHUB_REPOSITORY -p "KADR-Setup-${{ matrix.ver }}.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installer missing' }
+      - name: Install historical release
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path "KADR-Setup-${{ matrix.ver }}.exe").Path
+          $dest=Join-Path $env:RUNNER_TEMP "kadr-old-${{ matrix.ver }}"
+          $p=Start-Process $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dest") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Installer failed' }
+          "DEST=$dest" >> $env:GITHUB_ENV
+      - name: Observe ten independent 8-second KADR idle starts
+        shell: pwsh
+        run: |
+          $fail=0
+          for($i=1; $i -le 10; $i++) {
+            $p=Start-Process (Join-Path $env:DEST 'kadr.exe') -WorkingDirectory $env:DEST -ArgumentList '--startup' -PassThru
+            for($s=1;$s -le 8;$s++) {
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if($p.HasExited) {
+                $fail++
+                Write-Host "KADR_OLD_CRASH version=${{ matrix.ver }} attempt=$i at=$s exit=$($p.ExitCode)"
+                break
+              }
+            }
+            $p.Refresh()
+            if(-not $p.HasExited) {
+              Write-Host "KADR_OLD_STABLE version=${{ matrix.ver }} attempt=$i"
+              Stop-Process $p.Id -Force
+            }
+          }
+          Write-Host "KADR_OLD_RESULT version=${{ matrix.ver }} failures=$fail/10"
+          if($fail -gt 0) { throw "Historical KADR version ${{ matrix.ver }} not fully reliable" }
