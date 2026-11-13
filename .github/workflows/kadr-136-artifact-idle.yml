@@ -1,0 +1,51 @@
+name: KADR 1.0.36 idle stability from compiled artifact
+on:
+  push:
+    paths:
+      - '.github/workflows/kadr-136-artifact-idle.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  idle:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download internally compiled, unpublished KADR 1.0.36
+        shell: pwsh
+        run: |
+          gh run download 43410737077 --repo $env:GITHUB_REPOSITORY --name KADR-1.0.36-compiled-not-published --dir ci
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot download compiled diagnostic installer' }
+          if (-not (Test-Path ci/KADR-Setup.exe)) { throw 'Compiled EXE artifact not found' }
+      - name: Install exact unpublished build without launching it
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'KADR-136-idle-diagnostic'
+          $setup = (Resolve-Path ci/KADR-Setup.exe).Path
+          $p = Start-Process $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dest") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Install failed' }
+      - name: Check 45 seconds of idle Windows startup without tray clicks
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'KADR-136-idle-diagnostic'
+          $start = Get-Date
+          $p = Start-Process (Join-Path $dest 'kadr.exe') -WorkingDirectory $dest -ArgumentList '--startup' -PassThru
+          try {
+            for ($i=1; $i -le 45; $i++) {
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if ($p.HasExited) {
+                Write-Host "CRASHED_IDLE_136 at second=$i exit=$($p.ExitCode)"
+                Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$start} -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Message -match 'kadr.exe' } |
+                  Select-Object -First 3 TimeCreated,Message | Format-List | Out-String | Write-Host
+                throw 'KADR 1.0.36 crashed without tray interaction'
+              }
+            }
+            Write-Host "STABLE_IDLE_136_45_SECS pid=$($p.Id) privateMB=$([math]::Round($p.PrivateMemorySize64/1MB))"
+          } finally {
+            $p.Refresh()
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          }
