@@ -1,0 +1,44 @@
+name: Compare Windows 1.0.34 baseline real GUI startup
+on:
+  push:
+    paths:
+      - '.github/workflows/kadr-baseline-134-gui-diagnostics.yml'
+permissions:
+  contents: read
+jobs:
+  baseline-runtime:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout KADR runtime diagnostic script
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: f6e3af79357db7f898d8d6fb2d82556611dd98f6
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Fetch previously published 1.0.34 installer
+        shell: pwsh
+        run: |
+          gh release download kadr-windows-1.0.34 --repo $env:GITHUB_REPOSITORY -p KADR-Setup-1.0.34.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot download baseline KADR' }
+          $sha = (Get-FileHash KADR-Setup-1.0.34.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne '6b55cde5503132e4d230e1fa212220b7914787ca654af5ca3acaadfa04a9fc2c') {
+            throw 'Baseline hash mismatch'
+          }
+      - name: Install existing 1.0.34 on Windows runner
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'KADR-baseline-1.0.34'
+          $setup = (Resolve-Path 'KADR-Setup-1.0.34.exe').Path
+          $proc = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dest") -PassThru -Wait
+          if ($proc.ExitCode -ne 0) { throw "Baseline install failed code $($proc.ExitCode)" }
+      - name: Run same actual startup and tray smoke against baseline
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'KADR-baseline-1.0.34'
+          powershell -NoProfile -ExecutionPolicy Bypass -File source/tool/windows_startup_tray_smoke.ps1 -ReleaseDir $dest -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline KADR cannot run GUI smoke in this runner environment' }
