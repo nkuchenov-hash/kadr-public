@@ -35,13 +35,13 @@
       <div class="eyebrow">Release notes with a pulse</div>
       <h1>WHAT CHANGED<br>WHAT GETS BETTER</h1>
       <p>Every public KADR update gets a small release story here: what shipped, what became faster or easier, and which improvements you can use right away.</p>
-      <p><strong>Current releases: Windows 1.0.37 · Android 1.0.29 RC</strong> · <a href="../version.json">Version manifest and checksums</a></p>
+      <p><strong>Current releases: Windows 1.0.37 · Android 1.0.30 RC</strong> · <a href="../version.json">Version manifest and checksums</a></p>
     </div>
     <div data-lang="ru">
       <div class="eyebrow">Обновления живым языком</div>
       <h1>ЧТО ИЗМЕНИЛОСЬ<br>ЧТО СТАЛО ЛУЧШЕ</h1>
       <p>Каждое публичное обновление КАДР получает здесь короткую заметку: что вышло, что стало быстрее или удобнее и какими улучшениями уже можно пользоваться.</p>
-      <p><strong>Актуальные версии: Windows 1.0.37 · Android 1.0.29 RC</strong> · <a href="../version.json">Версии и контрольные суммы</a></p>
+      <p><strong>Актуальные версии: Windows 1.0.37 · Android 1.0.30 RC</strong> · <a href="../version.json">Версии и контрольные суммы</a></p>
     </div>
   </section>
 
@@ -77,6 +77,10 @@
   const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const fallbackStories={
+    'kadr-mobile-1.0.30-rc':{
+      en:{title:'KADR Mobile 1.0.30: cleaner capture and editing',lede:'A signed Android update with a redesigned editor, dark theme, and more manageable long screenshots.',body:['The gallery no longer rebuilds thumbnails each time a screenshot is selected. The immersive viewer keeps one compact bottom toolbar. The editor gains crisp vector icons for pen, hand, shapes and eraser.','Long captures now offer direct PDF/PNG controls, clearer saving progress and short-lived overlays. The Accessibility monitor and background transfers have been redesigned to reduce persistent notifications. Automated Android tests and signing verification passed; real-device Android 16 checks are still pending.']},
+      ru:{title:'KADR Mobile 1.0.30: удобнее снимки и редактор',lede:'Подписанное обновление Android с переработанным редактором, тёмной темой и удобным управлением длинными снимками.',body:['Галерея больше не пересоздаёт миниатюры при выделении снимков. Просмотр стал полноэкранным с одной компактной панелью снизу. В редакторе появились аккуратные векторные иконки, включая руку и ластик.','Для длинных снимков добавлен прямой выбор PDF/PNG и понятный прогресс сохранения. Переработаны доступность, фоновая передача и служебные уведомления. Автотесты и проверка подписи пройдены, но проверка на Android 16 ещё необходима.']}
+    },
     'windows-latest':{
       en:{title:'Companion connection gets simpler',lede:'The Windows build now prepares local Companion access during installation, so KADR is ready for direct transfer on the same network.',body:['The installer configures the required local firewall access automatically and keeps it limited to your local network. Old Cloudflare tunnel files are removed instead of hanging around in the background.','Less network archaeology, more screenshots.']},
       ru:{title:'Подключение Companion стало проще',lede:'Windows-сборка теперь сама готовит локальное подключение Companion при установке, чтобы КАДР был готов к прямой передаче в той же сети.',body:['Установщик автоматически настраивает нужный доступ в брандмауэре и ограничивает его локальной сетью. Старые файлы Cloudflare-туннеля удаляются и больше не остаются висеть в фоне.','Меньше сетевой археологии, больше скриншотов.']}
