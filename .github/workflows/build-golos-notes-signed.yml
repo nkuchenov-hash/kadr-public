@@ -81,15 +81,15 @@ jobs:
           cert="$("$signer" verify --print-certs "$apk" | awk '/SHA-256 digest:/ {print $NF;exit}' | tr '[:upper:]' '[:lower:]')"
           test "$cert" = 'd3ea886ec3f04bce2edc00f8638f6025935b83b1bdf7aef4ec5cc6dad7445cda'
           "$aapt" dump badging "$apk" | head -n 1
-          "$aapt" dump badging "$apk" | head -n 1 | grep -q "name='com.golos.notes' versionCode='1' versionName='0.1.0'"
+          "$aapt" dump badging "$apk" | head -n 1 | grep -q "name='com.golos.notes' versionCode='2' versionName='0.1.1'"
           mkdir -p dist
-          cp "$apk" dist/GOLOS-Notes-Android-0.1.0.apk
-          ( cd dist && sha256sum GOLOS-Notes-Android-0.1.0.apk > SHA256SUMS.txt )
+          cp "$apk" dist/GOLOS-Notes-Android-0.1.1.apk
+          ( cd dist && sha256sum GOLOS-Notes-Android-0.1.1.apk > SHA256SUMS.txt )
 
       - name: Keep installable APK as build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GOLOS-Notes-Android-0.1.0-signed
+          name: GOLOS-Notes-Android-0.1.1-signed
           path: dist/*
           if-no-files-found: error
 
@@ -99,12 +99,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag='golos-notes-android-v0.1.0'
+          tag='golos-notes-android-v0.1.1'
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" --repo "$GITHUB_REPOSITORY" dist/* --clobber
           else
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" dist/* \
-              --target "$GITHUB_SHA" --title "GOLOS Notes Android 0.1.0 — signed preview" \
+              --target "$GITHUB_SHA" --title "GOLOS Notes Android 0.1.1 — signed preview" \
               --notes "New app com.golos.notes. Separate stable GOLOS Notes signing key, local WAV recorder with microphone foreground service and recovery, playback/export and optional universal Groq AI notes. Android 16 hardware validation and KADR synchronization are still pending." \
               --prerelease
           fi
