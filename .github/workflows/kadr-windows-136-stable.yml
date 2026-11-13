@@ -9,13 +9,13 @@ permissions:
   actions: read
 concurrency:
   group: kadr-windows-136-stable
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   verify-and-publish:
     runs-on: windows-2022
     timeout-minutes: 70
     env:
-      SOURCE_SHA: ec2da52fb4bdb491da74af0a5fb5d6f5303e0bab
+      SOURCE_SHA: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact private KADR source
@@ -37,10 +37,11 @@ jobs:
           if ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -notmatch "version = '1\.0\.36'") { throw 'Wrong About version' }
           if ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -notmatch "channel = 'Stable'") { throw 'Not a stable build' }
 
-      - name: Setup Flutter
+      - name: Setup verified Flutter Windows 3.47.9 engine
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.47.9'
           cache: true
 
       - name: Resolve dependencies
@@ -165,9 +166,9 @@ jobs:
           - Отдельное окно трея больше не закрывается из-за смены фокуса скрытого основного окна
           - Сохранены редактор, длинные скриншоты PDF/PNG, видеозапись и мобильная синхронизация
 
-          Windows CI, 8 real cold launches and 80 actual tray open/close cycles passed.
+          Windows CI, Flutter 3.47.9, 8 real cold launches and 80 actual tray open/close cycles passed.
           On-device Windows configurations and actual phone transfer still require acceptance.
-          Private source: ec2da52fb4bdb491da74af0a5fb5d6f5303e0bab
+          Private source: 05e6ad9a78ce7bc79962c1957478e5714e63bd18
           '@ | Set-Content -Path release-notes.md -Encoding utf8
           $repo = $env:GITHUB_REPOSITORY
           gh release view kadr-windows-1.0.36 --repo $repo *> $null
@@ -227,7 +228,7 @@ jobs:
           now=datetime.now(timezone.utc)
           manifest.update(current_version='1.0.36',channel='stable',release_date=now.strftime('%Y-%m-%d'),
               published_at=now.isoformat(),
-              source_commit='ec2da52fb4bdb491da74af0a5fb5d6f5303e0bab',
+              source_commit='05e6ad9a78ce7bc79962c1957478e5714e63bd18',
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.36')
           manifest['windows'].update(version='1.0.36',build=36,
               download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/'+new,
