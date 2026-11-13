@@ -1,0 +1,55 @@
+name: Isolate KADR multi-engine runtime and tray stability
+on:
+  push:
+    paths:
+      - '.github/workflows/kadr-engine-tray-runtime.yml'
+permissions:
+  contents: read
+jobs:
+  isolate:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact KADR source with engine diagnostic modes
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 57aee74be9782189aa94c785329ed6b9169ba8d1
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Dependencies
+        working-directory: source
+        run: flutter pub get
+      - name: Build Windows release once
+        working-directory: source
+        run: flutter build windows --release
+      - name: Compare default vs tray-only engine with repeated native menu cycles
+        shell: pwsh
+        working-directory: source
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $all = @()
+          foreach ($mode in @('main_tray','default','main_tray','default')) {
+            Write-Host "ENGINE_TRAY_BEGIN $mode"
+            if ($mode -eq 'default') {
+              Remove-Item Env:KADR_DIAGNOSTIC_ENGINE_MODE -ErrorAction SilentlyContinue
+            } else {
+              $env:KADR_DIAGNOSTIC_ENGINE_MODE = $mode
+            }
+            powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -TrayCycles 20 -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
+            $code = $LASTEXITCODE
+            Write-Host "ENGINE_TRAY_RESULT mode=$mode exit=$code"
+            $all += [pscustomobject]@{Mode=$mode;Exit=$code}
+            Start-Sleep -Seconds 2
+          }
+          Remove-Item Env:KADR_DIAGNOSTIC_ENGINE_MODE -ErrorAction SilentlyContinue
+          Write-Host "ENGINE_TRAY_MATRIX=$($all | ConvertTo-Json -Compress)"
+          # Fail this diagnostic job if at least one of the modes fails,
+          # but only after collecting both cases for comparison.
+          if ($all | Where-Object { $_.Exit -ne 0 }) { throw 'One or more engine modes crashed at runtime' }
