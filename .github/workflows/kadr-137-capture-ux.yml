@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: ec1f201ca5872da3881faac04bbab256997c303a
+          ref: 5eb91b1fbf3bd0b80236ee62a332199e8f94bc1e
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 0
@@ -38,7 +38,7 @@ jobs:
         working-directory: source
         shell: pwsh
         run: |
-          flutter test test/capture_eraser_outside_panels_live_resize_test.dart test/capture_editor_locked_contract_test.dart test/p0_native_region_capture_test.dart test/p0_tray_hotkey_overlay_test.dart test/tray_startup_performance_contract_test.dart test/history_recent_recovery_test.dart
+          flutter test test/capture_eraser_outside_panels_live_resize_test.dart test/figma_toolbar_13_102_contract_test.dart test/p0_native_capture_panels_test.dart test/capture_action_panel_anchor_contract_test.dart test/capture_toolbar_inside_fallback_test.dart test/capture_editor_locked_contract_test.dart test/p0_native_region_capture_test.dart test/p0_tray_hotkey_overlay_test.dart test/tray_startup_performance_contract_test.dart test/history_recent_recovery_test.dart
           if ($LASTEXITCODE -ne 0) { throw 'Capture UX regression tests failed' }
       - name: Verify protected capture editor and original accepted UI
         shell: pwsh
