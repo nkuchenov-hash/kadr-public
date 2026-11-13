@@ -1,0 +1,52 @@
+name: Flutter Windows engine baseline isolation
+on:
+  push:
+    paths:
+      - '.github/workflows/flutter-windows-hello-baseline.yml'
+permissions:
+  contents: read
+jobs:
+  hello:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Setup same stable Flutter SDK used by KADR
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate unmodified Windows Flutter hello app
+        shell: pwsh
+        run: |
+          flutter create diag_flutter --platforms=windows --project-name diag_flutter
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot create Flutter hello' }
+      - name: Build unmodified Flutter hello release
+        working-directory: diag_flutter
+        shell: pwsh
+        run: |
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot compile Flutter hello' }
+      - name: Run same Flutter Windows engine without KADR for 30 seconds
+        working-directory: diag_flutter
+        shell: pwsh
+        run: |
+          $release = (Resolve-Path 'build/windows/x64/runner/Release').Path
+          $exe = Join-Path $release 'diag_flutter.exe'
+          $start = Get-Date
+          $p = Start-Process $exe -WorkingDirectory $release -PassThru
+          try {
+            for ($i=1; $i -le 30; $i++) {
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if ($p.HasExited) {
+                Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$start} -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Message -match 'diag_flutter.exe' } |
+                  Select-Object -First 3 TimeCreated,Message | Format-List | Out-String | Write-Host
+                throw "FLUTTER_HELLO_CRASH at second $i exit code $($p.ExitCode)"
+              }
+            }
+            Write-Host "FLUTTER_HELLO_SURVIVED_30_SECONDS"
+          } finally {
+            $p.Refresh()
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          }
