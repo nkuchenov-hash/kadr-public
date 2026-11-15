@@ -48,3 +48,5 @@ jobs:
           ! grep -q 'GolosLocalNetworkBinder' "$p/GolosPcTransfer.java"
           test -s 'private-source/ci/golos-notes-android/mobile/android/app/build/outputs/apk/debug/app-debug.apk'
 # Retest: original KADR openSocket handles VPN route fallback.
+
+# Verify updated GOLOS Notes 0.1.12 two-way KADR v3 auth and pinned fingerprint.
