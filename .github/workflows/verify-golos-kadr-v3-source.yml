@@ -1,0 +1,49 @@
+name: Verify GOLOS KADR v3 source port
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-golos-kadr-v3-source.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android-source-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ci/golos-notes-kadr-v3-port
+          path: private-source
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Original KADR Android transport port unit tests and compilation
+        working-directory: private-source/ci/golos-notes-android/mobile/android
+        run: |
+          gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon --console=plain --stacktrace
+      - name: Verify exact KADR port classes present and both legacy custom classes unused
+        shell: bash
+        run: |
+          set -euo pipefail
+          p='private-source/ci/golos-notes-android/mobile/android/app/src/main/java/com/golos/notes'
+          test -f "$p/transport/LocalNetworkBinder.java"
+          test -f "$p/transport/DesktopDiscovery.java"
+          test -f "$p/transport/WifiFirstDesktopDiscovery.java"
+          test -f "$p/transport/PairingCode.java"
+          test -f "$p/transport/PairingUrlParser.java"
+          ! grep -q 'GolosDesktopDiscovery' "$p/MainActivity.java"
+          ! grep -q 'GolosLocalNetworkBinder' "$p/GolosPcTransfer.java"
+          test -s 'private-source/ci/golos-notes-android/mobile/android/app/build/outputs/apk/debug/app-debug.apk'
