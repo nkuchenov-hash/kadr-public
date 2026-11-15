@@ -1,4 +1,4 @@
-name: GOLOS Notes 0.1.11 — KADR v3 QR signed preview
+name: GOLOS Notes 0.1.12 — KADR v3 QR signed preview
 on:
   push:
     branches: [main]
@@ -81,15 +81,15 @@ jobs:
           cert="$("$signer" verify --print-certs "$apk" | awk '/SHA-256 digest:/ {print $NF;exit}' | tr '[:upper:]' '[:lower:]')"
           test "$cert" = 'd3ea886ec3f04bce2edc00f8638f6025935b83b1bdf7aef4ec5cc6dad7445cda'
           "$aapt" dump badging "$apk" | head -n 1
-          "$aapt" dump badging "$apk" | head -n 1 | grep -q "name='com.golos.notes' versionCode='12' versionName='0.1.11'"
+          "$aapt" dump badging "$apk" | head -n 1 | grep -q "name='com.golos.notes' versionCode='13' versionName='0.1.12'"
           mkdir -p dist
-          cp "$apk" dist/GOLOS-Notes-Android-0.1.11.apk
-          ( cd dist && sha256sum GOLOS-Notes-Android-0.1.11.apk > SHA256SUMS.txt )
+          cp "$apk" dist/GOLOS-Notes-Android-0.1.12.apk
+          ( cd dist && sha256sum GOLOS-Notes-Android-0.1.12.apk > SHA256SUMS.txt )
 
       - name: Keep installable APK as build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GOLOS-Notes-Android-0.1.11-signed
+          name: GOLOS-Notes-Android-0.1.12-signed
           path: dist/*
           if-no-files-found: error
 
@@ -99,14 +99,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag='golos-notes-android-v0.1.11'
+          tag='golos-notes-android-v0.1.12'
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" --repo "$GITHUB_REPOSITORY" dist/* --clobber
           else
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" dist/* \
-              --target "$GITHUB_SHA" --title "GOLOS Notes Android 0.1.11 — signed preview" \
-              --notes "GOLOS Notes 0.1.11 preview: KADR original Android transfer source port (LocalNetworkBinder, DesktopDiscovery, WifiFirstDesktopDiscovery, PairingCode, PairingUrlParser), Google Code Scanner v3 permanent QR, Android-keystore HMAC device authentication, existing WAV recorder, desktop send/receive tools. Requires GOLOS Windows 0.2.8 QR v3 receiver. Bluetooth/relay not yet ported, physical device roundtrip unverified. Compatible signer, versionCode 12." \
+              --target "$GITHUB_SHA" --title "GOLOS Notes Android 0.1.12 — signed preview" \
+              --notes "GOLOS Notes 0.1.12 preview: KADR original Android transfer source port (LocalNetworkBinder, DesktopDiscovery, WifiFirstDesktopDiscovery, PairingCode, PairingUrlParser), Google Code Scanner v3 permanent QR, Android-keystore HMAC device authentication, existing WAV recorder, desktop send/receive tools. Requires GOLOS Windows 0.2.8 QR v3 receiver. Bluetooth/relay not yet ported, physical device roundtrip unverified. Compatible signer, versionCode 12." \
               --prerelease
           fi
 
-# Rebuild 0.1.11 after replacing missing Android framework copy icon with packaged vector.
+# Rebuild 0.1.12 after replacing missing Android framework copy icon with packaged vector.
