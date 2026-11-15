@@ -154,3 +154,5 @@ jobs:
           Write-Host ('Prepared DLLs for test process: ' + (($dllFiles | Select-Object -ExpandProperty Name -Unique) -join ', '))
           cargo test --release
           if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
+
+# Retest QR SVG Rust raw string literal fix.
