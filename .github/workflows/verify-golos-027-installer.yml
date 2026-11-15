@@ -1,0 +1,60 @@
+name: Verify GOLOS Windows 0.2.7 installer
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/verify-golos-027-installer.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install-smoke:
+    runs-on: windows-2022
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact published installer and checksum
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download golos-v0.2.7-direct-mobile-bridge-rc --repo $env:GITHUB_REPOSITORY --pattern 'GOLOS_0.2.7_x64-Mobile-Bridge-Preview.exe' --pattern 'SHA256SUMS.txt'
+          if ($LASTEXITCODE -ne 0) { throw 'Release download failed' }
+          $asset = 'GOLOS_0.2.7_x64-Mobile-Bridge-Preview.exe'
+          if (-not (Test-Path $asset)) { throw 'No installable Windows file' }
+          $record = (Get-Content SHA256SUMS.txt -Raw).Trim()
+          $expected = ($record -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -ne $actual) { throw 'Installer SHA256 mismatch' }
+          Write-Host "Verified published checksum $actual"
+      - name: Verify unattended current-user installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path 'GOLOS_0.2.7_x64-Mobile-Bridge-Preview.exe').Path
+          $p = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "NSIS exit status: $($p.ExitCode)" }
+          $exe = Join-Path $env:LOCALAPPDATA 'GOLOS\golos.exe'
+          if (-not (Test-Path $exe)) {
+            $possible = @(Get-ChildItem $env:LOCALAPPDATA -Filter 'golos.exe' -File -Recurse -ErrorAction SilentlyContinue)
+            if ($possible.Count -eq 0) { throw "GOLOS executable not found after install" }
+            $exe = $possible[0].FullName
+          }
+          $version = (Get-Item $exe).VersionInfo.ProductVersion
+          if ($version -notmatch '^0\.2\.7(\.|$)') { throw "Wrong installed GOLOS version: $version" }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Verified installed exe: $exe"
+          Write-Host "Version: $version SHA256: $hash"
+          $out = @{
+            version = $version
+            installedExe = $exe
+            sha256 = $hash
+            os = [System.Environment]::OSVersion.VersionString
+            verifiedAt = (Get-Date).ToUniversalTime().ToString("o")
+          }
+          $out | ConvertTo-Json | Out-File -FilePath golos-installer-smoke.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GOLOS-Windows-0.2.7-installer-smoke
+          path: golos-installer-smoke.json
+          if-no-files-found: ignore
