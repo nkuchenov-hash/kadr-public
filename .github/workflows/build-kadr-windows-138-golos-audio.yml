@@ -1,0 +1,87 @@
+name: KADR Windows 1.0.38 GOLOS Audio Bridge
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-kadr-windows-138-golos-audio.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 110
+    env:
+      SOURCE_SHA: 229d747df1d59a7ef241154e4b1fe0c501f92d0f
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout private KADR source
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 229d747df1d59a7ef241154e4b1fe0c501f92d0f
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+          cache: true
+      - name: Flutter package resolution and bridge tests
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw "pub get failed" }
+          flutter test test/golos_audio_archive_test.dart test/mobile_screenshot_receiver_test.dart
+          if ($LASTEXITCODE -ne 0) { throw "GOLOS audio bridge tests failed" }
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) { throw "flutter analyze failed" }
+      - name: Build Windows
+        shell: pwsh
+        working-directory: source
+        run: |
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
+      - name: Create Windows installer
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup missing" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" 'source/installer/kadr.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
+      - name: Verify install upgrade identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path 'source/build/installer/KADR-Setup.exe').Path
+          $target = Join-Path $env:RUNNER_TEMP 'KADR-GOLOS-Audio-Verified'
+          $p = Start-Process $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$target") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer failed" }
+          $exe = Join-Path $target 'kadr.exe'
+          if (-not (Test-Path $exe)) { throw "Installed exe missing" }
+          $version = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $version.StartsWith('1.0.38')) { throw "Version mismatch" }
+          $built = (Get-FileHash source/build/windows/x64/runner/Release/kadr.exe -Algorithm SHA256).Hash
+          $installed = (Get-FileHash $exe -Algorithm SHA256).Hash
+          if ($built -ne $installed) { throw "Installed executable mismatch" }
+          $builtApp = (Get-FileHash source/build/windows/x64/runner/Release/data/app.so -Algorithm SHA256).Hash
+          $installedApp = (Get-FileHash (Join-Path $target 'data/app.so') -Algorithm SHA256).Hash
+          if ($builtApp -ne $installedApp) { throw "Flutter code mismatch" }
+      - name: Release opt-in preview installer
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.38-GOLOS-Audio-Preview.exe
+          $hash = (Get-FileHash KADR-Setup-1.0.38-GOLOS-Audio-Preview.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  KADR-Setup-1.0.38-GOLOS-Audio-Preview.exe" | Set-Content SHA256SUMS.txt -Encoding ascii
+          Set-Content release-notes.md 'KADR Windows GOLOS Audio Bridge 1.0.38: adds authenticated LAN /golos-audio on existing port 8791; writes safe WAV and metadata to GOLOS desktop recorder archive. Retains existing KADR screenshot receiver. Requires KADR Mobile 1.0.35 and GOLOS Notes 0.1.5. Preview; physical-device acceptance is pending.'
+          gh release create kadr-windows-1.0.38-golos-audio-rc KADR-Setup-1.0.38-GOLOS-Audio-Preview.exe SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "KADR Windows 1.0.38 GOLOS Audio Bridge (Preview)" --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw "Publication failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Windows-1.0.38-GOLOS-Audio-Preview
+          path: |
+            KADR-Setup-1.0.38-GOLOS-Audio-Preview.exe
+            SHA256SUMS.txt
+          if-no-files-found: error
