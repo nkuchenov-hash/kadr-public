@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: ci/golos-0_2_8-direct-bridge-20261115
+          ref: ci/golos-windows-kadr-v3-port
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: private-ci
           persist-credentials: false
@@ -187,7 +187,7 @@ jobs:
           - Real Android 16 to Windows end-to-end pairing/WAV transfer has not yet passed device acceptance.
           '@
           $notes | Set-Content release-notes.md -Encoding utf8
-          gh release create golos-v0.2.8-kadr-v3-source-rc $asset SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.8 Windows — Direct Mobile Bridge Preview" --notes-file release-notes.md --prerelease
+          gh release create golos-v0.2.8-kadr-v3-source-rc $asset SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.8 Windows — KADR v3 QR source-port preview" --notes-file release-notes.md --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
       - uses: actions/upload-artifact@v4
         if: always()
