@@ -40,7 +40,7 @@ jobs:
             $exe = $possible[0].FullName
           }
           $version = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($version -notmatch '^0\.2\.7(\.|$)') { throw "Wrong installed GOLOS version: $version" }
+          if ($version -notmatch '^0\.2\.8(\.|$)') { throw "Wrong installed GOLOS version: $version" }
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           Write-Host "Verified installed exe: $exe"
           Write-Host "Version: $version SHA256: $hash"
