@@ -156,3 +156,5 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
 
 # Retest QR SVG Rust raw string literal fix.
+
+# Re-run on updated KADR Rust QR/HMAC golden tests snapshot.
