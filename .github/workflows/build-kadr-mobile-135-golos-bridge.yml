@@ -2,7 +2,7 @@ name: Build and release signed KADR Mobile 1.0.35
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/build-kadr-mobile-135.yml']
+    paths: ['.github/workflows/build-kadr-mobile-135-golos-bridge.yml']
   workflow_dispatch:
 
 permissions:
