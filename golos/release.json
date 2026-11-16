@@ -1,9 +1,9 @@
 {
-  "sha256": "dcdd2c49c672a7c0a273af58dd44656ea21a9abf8617c72b4f18eee0e6e97c30",
-  "revision": "d65b8676",
-  "version": "0.2.14",
-  "name": "GOLOS_0.2.14_x64-Groq-Connected.exe",
+  "revision": "082df4ec",
+  "name": "GOLOS_0.2.15_x64-Mobile-Transfer-Fix.exe",
+  "version": "0.2.15",
   "channel": "preview",
-  "publishedAt": "2026-11-16T13:48:36.1337945Z",
-  "sizeBytes": 10787846
+  "publishedAt": "2026-11-16T14:01:25.9093487Z",
+  "sizeBytes": 10787213,
+  "sha256": "fb481bd508b1ae1b848d4d77538103d159115ef92443d0551a0c535f3a0b047e"
 }
