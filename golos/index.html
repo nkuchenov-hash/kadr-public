@@ -62,7 +62,7 @@ footer a{color:var(--accent)}
 <section class="details">
 <article><h2 data-ru="Локальная диктовка" data-en="Local dictation">Локальная диктовка</h2><p data-ru="Распознавание GigaAM v3 и Parakeet на вашем компьютере." data-en="GigaAM v3 and Parakeet recognition on your computer.">Распознавание GigaAM v3 и Parakeet на вашем компьютере.</p></article>
 <article><h2 data-ru="Вставка по горячей клавише" data-en="Hotkey-to-paste">Вставка по горячей клавише</h2><p data-ru="Диктуйте в активное текстовое поле без копирования вручную." data-en="Dictate into the active text field without copying manually.">Диктуйте в активное текстовое поле без копирования вручную.</p></article>
-<article><h2 data-ru="Новая аудиобиблиотека" data-en="New audio library">Новая аудиобиблиотека</h2><p data-ru="Аудиозаписи, реальная звуковая шкала, проверенное подключение Groq и надёжная передача WAV с телефона на ПК." data-en="Audio recordings, real seekable waveform, verified Groq connection and reliable phone-to-PC WAV transfers.">Аудиозаписи, реальная звуковая шкала, проверенное подключение Groq и надёжная передача WAV с телефона на ПК.</p></article>
+<article><h2 data-ru="Новая аудиобиблиотека" data-en="New audio library">Новая аудиобиблиотека</h2><p data-ru="Аудиозаписи, саммари и подключение GOLOS Notes: QR, диагностика KADR и автоматическая настройка брандмауэра Windows для частных сетей." data-en="Audio recordings, AI summaries and GOLOS Notes pairing with QR, KADR-style network diagnostics and private-network Windows firewall setup.">Аудиозаписи, саммари и подключение GOLOS Notes: QR, диагностика KADR и автоматическая настройка брандмауэра Windows для частных сетей.</p></article>
 </section>
 </main>
 <footer><span data-ru="GOLOS · Публичные тестовые сборки" data-en="GOLOS · Public preview builds">GOLOS · Публичные тестовые сборки</span> · <a href="../downloads/GOLOS-Setup.sha256" data-ru="SHA-256 установщика" data-en="Installer SHA-256">SHA-256 установщика</a></footer>
@@ -94,7 +94,7 @@ fetch(manifestUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release
    downloadLabel.dataset.ru='Скачать GOLOS '+semanticVersion;
    downloadLabel.dataset.en='Download GOLOS '+semanticVersion;
    downloadLabel.textContent=downloadLabel.dataset[lang];
-   status.textContent=lang==='ru'?'GOLOS 0.2.14 опубликован. Подключите Groq в разделе «Модели» для создания саммари.':'GOLOS 0.2.14 is published. Connect Groq in Models to generate summaries.';
+   status.textContent=lang==='ru'?'GOLOS 0.2.16 опубликован. Исправлено разрешение сетевого доступа для GOLOS Notes.':'GOLOS 0.2.16 is published with the GOLOS Notes Windows firewall fix.';
    return;
  }
  downloadLabel.dataset.ru='Новый установщик готовится';
