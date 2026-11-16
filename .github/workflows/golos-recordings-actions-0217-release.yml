@@ -231,7 +231,7 @@ jobs:
             $exe = $found[0].FullName
           }
           $version = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($version -notmatch '^0\.2\.16(\.|$)') { throw "Wrong version $version at $exe" }
+          if ($version -notmatch '^0\.2\.17(\.|$)') { throw "Wrong version $version at $exe" }
           $tcpRule = @(Get-NetFirewallRule -DisplayName 'GOLOS Notes LAN' -ErrorAction SilentlyContinue)
           $udpRule = @(Get-NetFirewallRule -DisplayName 'GOLOS Notes Discovery' -ErrorAction SilentlyContinue)
           if ($tcpRule.Count -ne 1 -or $udpRule.Count -ne 1) {
