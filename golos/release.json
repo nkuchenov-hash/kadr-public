@@ -1,9 +1,9 @@
 {
-  "revision": "082df4ec",
-  "name": "GOLOS_0.2.15_x64-Mobile-Transfer-Fix.exe",
-  "version": "0.2.15",
-  "channel": "preview",
-  "publishedAt": "2026-11-16T14:01:25.9093487Z",
-  "sizeBytes": 10787213,
-  "sha256": "fb481bd508b1ae1b848d4d77538103d159115ef92443d0551a0c535f3a0b047e"
+  "sizeBytes": 10797160,
+  "name": "GOLOS_0.2.16_x64-KADR-LAN-Permissions.exe",
+  "revision": "f861a059",
+  "version": "0.2.16",
+  "publishedAt": "2026-11-16T15:22:47.7074447Z",
+  "sha256": "bbc5dd4f881e843ba75892408120c07bc955f1a029012f13a7b9e45205add1e4",
+  "channel": "preview"
 }
