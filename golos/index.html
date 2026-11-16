@@ -54,7 +54,7 @@ footer a{color:var(--accent)}
 <a class="download disabled" id="download" href="#" aria-disabled="true" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m-5-5 5 5 5-5M4 17v3h16v-3"/></svg><span data-ru="Проверка нового выпуска" data-en="Validating new release">Проверка нового выпуска</span></a>
 <div class="meta"><strong>Windows 10/11 · x64</strong><span id="version">GOLOS · Preview</span></div>
 </div>
-<p class="status" id="status" role="status" aria-live="polite"></p>
+<p class="status" id="status" role="status" aria-live="polite" data-ru="" data-en=""></p>
 <p class="companion" style="margin-top:10px;color:var(--muted);font-size:15px;">
   <span data-ru="Есть приложение для телефона:" data-en="Android companion available:">Есть приложение для телефона:</span>
   <a style="color:var(--accent);font-weight:700;" href="https://github.com/nkuchenov-hash/kadr-public/releases/download/golos-notes-android-v0.1.14/GOLOS-Notes-Android-0.1.14.apk" data-ru="GOLOS Notes 0.1.14 · APK" data-en="GOLOS Notes 0.1.14 · APK">GOLOS Notes 0.1.14 · APK</a>
@@ -62,7 +62,7 @@ footer a{color:var(--accent)}
 <section class="details">
 <article><h2 data-ru="Локальная диктовка" data-en="Local dictation">Локальная диктовка</h2><p data-ru="Распознавание GigaAM v3 и Parakeet на вашем компьютере." data-en="GigaAM v3 and Parakeet recognition on your computer.">Распознавание GigaAM v3 и Parakeet на вашем компьютере.</p></article>
 <article><h2 data-ru="Вставка по горячей клавише" data-en="Hotkey-to-paste">Вставка по горячей клавише</h2><p data-ru="Диктуйте в активное текстовое поле без копирования вручную." data-en="Dictate into the active text field without copying manually.">Диктуйте в активное текстовое поле без копирования вручную.</p></article>
-<article><h2 data-ru="Новая аудиобиблиотека" data-en="New audio library">Новая аудиобиблиотека</h2><p data-ru="Аудиозаписи, саммари и подключение GOLOS Notes: QR, диагностика KADR и автоматическая настройка брандмауэра Windows для частных сетей." data-en="Audio recordings, AI summaries and GOLOS Notes pairing with QR, KADR-style network diagnostics and private-network Windows firewall setup.">Аудиозаписи, саммари и подключение GOLOS Notes: QR, диагностика KADR и автоматическая настройка брандмауэра Windows для частных сетей.</p></article>
+<article><h2 data-ru="Новая аудиобиблиотека" data-en="New audio library">Новая аудиобиблиотека</h2><p data-ru="Записи с ПК и телефона, транскрибация прямо из карточки или массово, теги, саммари и подключение GOLOS Notes." data-en="Recordings from PC and phone, one-click and batch transcription, editable tags, AI summaries, and GOLOS Notes connectivity.">Записи с ПК и телефона, транскрибация прямо из карточки или массово, теги, саммари и подключение GOLOS Notes.</p></article>
 </section>
 </main>
 <footer><span data-ru="GOLOS · Публичные тестовые сборки" data-en="GOLOS · Public preview builds">GOLOS · Публичные тестовые сборки</span> · <a href="../downloads/GOLOS-Setup.sha256" data-ru="SHA-256 установщика" data-en="Installer SHA-256">SHA-256 установщика</a></footer>
@@ -94,18 +94,22 @@ fetch(manifestUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release
    downloadLabel.dataset.ru='Скачать GOLOS '+semanticVersion;
    downloadLabel.dataset.en='Download GOLOS '+semanticVersion;
    downloadLabel.textContent=downloadLabel.dataset[lang];
-   status.textContent=lang==='ru'?'GOLOS 0.2.16 опубликован. Исправлено разрешение сетевого доступа для GOLOS Notes.':'GOLOS 0.2.16 is published with the GOLOS Notes Windows firewall fix.';
+   status.dataset.ru='GOLOS '+semanticVersion+' опубликован. Установщик Windows проверен.';
+   status.dataset.en='GOLOS '+semanticVersion+' is published. The Windows installer has passed validation.';
+   status.textContent=status.dataset[lang];
    return;
  }
  downloadLabel.dataset.ru='Новый установщик готовится';
  downloadLabel.dataset.en='New installer is being prepared';
  downloadLabel.textContent=downloadLabel.dataset[lang];
- status.textContent=lang==='ru'
-   ?'Проверка нового выпуска ещё не завершена. Старые версии временно не предлагаются как новые.'
-   :'The latest release is still being verified. Older versions are not being presented as new.';
+ status.dataset.ru='Проверка нового выпуска ещё не завершена. Старые версии временно не предлагаются как новые.';
+ status.dataset.en='The latest release is still being verified. Older versions are not being presented as new.';
+ status.textContent=status.dataset[lang];
  return;
 }).catch(()=>{
- status.textContent=lang==='ru'?'Не удалось проверить публикацию новой версии. Скачивание пока недоступно.':'Could not verify the new release. Download is temporarily unavailable.';
+ status.dataset.ru='Не удалось проверить публикацию новой версии. Скачивание пока недоступно.';
+ status.dataset.en='Could not verify the new release. Download is temporarily unavailable.';
+ status.textContent=status.dataset[lang];
 });
 })();
 </script>
