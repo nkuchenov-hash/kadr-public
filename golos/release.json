@@ -1,9 +1,9 @@
 {
-  "version": "0.2.12",
-  "sizeBytes": 10758808,
+  "sizeBytes": 10759416,
+  "version": "0.2.13",
+  "revision": "c20d4b95",
   "channel": "preview",
-  "revision": "4d3b38cf",
-  "name": "GOLOS_0.2.12_x64-Waveform-Summary-ETA.exe",
-  "sha256": "c3df2aa5505a3a09e545790a3407f092bc9e88fa40ea815e44d5b202f5d558d2",
-  "publishedAt": "2026-11-16T12:32:03.3119170Z"
+  "publishedAt": "2026-11-16T13:21:49.8706897Z",
+  "sha256": "111a301cb03935de324cad1273c1ab0c62f13065546834d4d840c8608351611d",
+  "name": "GOLOS_0.2.13_x64-Reliable-Summaries.exe"
 }
