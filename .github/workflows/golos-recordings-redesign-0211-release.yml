@@ -177,7 +177,7 @@ jobs:
             $exe = $files[0].FullName
           }
           $version = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($version -notmatch '^0\\.2\\.11(\\.|$)') { throw "Wrong version $version" }
+          if ($version -notmatch '^0\.2\.11(\.|$)') { throw "Wrong version $version" }
           Write-Host "GOLOS 0.2.11 installed smoke test PASS: $exe"
       - name: Verify and publish installable 0.2.11 preview and update GOLOS website
         shell: pwsh
