@@ -20,7 +20,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 95
     env:
-      SOURCE_SHA: e36f3a8d59281385289ed82702662d3c30c31aa3
+      SOURCE_SHA: c95c2d3742767aadd96a57653c1442f6a46a1dd7
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout public site and release metadata
@@ -151,7 +151,7 @@ jobs:
           запусков с 80 циклами трея. Испытания на пользовательском ПК нужны
           отдельно.
 
-          Source SHA: e36f3a8d59281385289ed82702662d3c30c31aa3
+          Source SHA: c95c2d3742767aadd96a57653c1442f6a46a1dd7
           '@ | Set-Content release-notes.md -Encoding utf8
           $repo=$env:GITHUB_REPOSITORY
           gh release view kadr-windows-1.0.39 --repo $repo *> $null
@@ -204,7 +204,7 @@ jobs:
           manifest=json.loads(path.read_text(encoding='utf-8'))
           now=datetime.now(timezone.utc)
           manifest.update(current_version='1.0.39',channel='stable',release_date=now.strftime('%Y-%m-%d'),
-              published_at=now.isoformat(),source_commit='e36f3a8d59281385289ed82702662d3c30c31aa3',
+              published_at=now.isoformat(),source_commit='c95c2d3742767aadd96a57653c1442f6a46a1dd7',
               verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/'+__import__('os').environ['GITHUB_RUN_ID'],
               release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.39')
           manifest['windows'].update(version='1.0.39',build=39,
