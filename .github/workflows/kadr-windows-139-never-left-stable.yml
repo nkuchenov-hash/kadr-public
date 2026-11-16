@@ -34,7 +34,7 @@ jobs:
           repository: nkuchenov-hash/KADR
           ref: ${{ env.SOURCE_SHA }}
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
-          persist-credentials: false
+          persist-credentials: true
           fetch-depth: 0
           path: source
       - name: Configure Flutter Windows 3.47.9
