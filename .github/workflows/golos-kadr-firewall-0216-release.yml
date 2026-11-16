@@ -238,7 +238,22 @@ jobs:
           if ($tcpFilter.Protocol -ne 'TCP' -or $tcpFilter.LocalPort -ne '8793') { throw 'GOLOS TCP port rule wrong' }
           if ($udpFilter.Protocol -ne 'UDP' -or $udpFilter.LocalPort -ne '8794') { throw 'GOLOS UDP port rule wrong' }
           $tcpAddress = $tcpRule | Get-NetFirewallAddressFilter
-          if ($tcpAddress.RemoteAddress -notcontains '10.0.0.0/8') { throw 'Private-LAN restriction missing' }
+          $udpAddress = $udpRule | Get-NetFirewallAddressFilter
+          $tcpRemote = @($tcpAddress.RemoteAddress) -join ','
+          $udpRemote = @($udpAddress.RemoteAddress) -join ','
+          Write-Host "GOLOS firewall TCP allowed addresses: $tcpRemote"
+          Write-Host "GOLOS firewall UDP allowed addresses: $udpRemote"
+          foreach ($allowed in @($tcpRemote, $udpRemote)) {
+            if (-not $allowed -or $allowed.Trim() -eq 'Any' -or $allowed.Contains('0.0.0.0/0')) {
+              throw "GOLOS firewall rule has unrestricted/missing remote addresses: $allowed"
+            }
+            # The NetSecurity PowerShell module may normalize CIDR to address
+            # ranges or netmasks. Require the 10/8 range or LocalSubnet,
+            # without comparing formatting literally to '10.0.0.0/8'.
+            if ($allowed -notmatch '10[.]0[.]0[.]0|LocalSubnet') {
+              throw "GOLOS private LAN addresses not installed: $allowed"
+            }
+          }
           Write-Host "GOLOS 0.2.16 installed smoke test PASS: $exe; private TCP/UDP firewall rules present"
       - name: Verify and publish installable 0.2.16 and update GOLOS website
         shell: pwsh
