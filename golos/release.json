@@ -1,9 +1,9 @@
 {
-  "revision": "e6983889",
-  "version": "0.2.11",
-  "sizeBytes": 10742659,
-  "sha256": "b313a8fa3e2f0d2a7fb6f38dd4ffc9a0b0a323787d649616382798306293cb8f",
-  "name": "GOLOS_0.2.11_x64-Recordings-Redesign.exe",
+  "version": "0.2.12",
+  "sizeBytes": 10758808,
   "channel": "preview",
-  "publishedAt": "2026-11-16T11:24:42.6808916Z"
+  "revision": "4d3b38cf",
+  "name": "GOLOS_0.2.12_x64-Waveform-Summary-ETA.exe",
+  "sha256": "c3df2aa5505a3a09e545790a3407f092bc9e88fa40ea815e44d5b202f5d558d2",
+  "publishedAt": "2026-11-16T12:32:03.3119170Z"
 }
