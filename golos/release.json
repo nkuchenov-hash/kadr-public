@@ -1,9 +1,9 @@
 {
-  "revision": "ee1cad7d",
-  "name": "GOLOS_0.2.17_x64-Recording-Actions.exe",
+  "name": "GOLOS_PR-11_ee1666e5_x64-setup.exe",
+  "revision": "ee1666e5",
+  "sha256": "9a0a09fe849fa217d0580b0c609c782968d417cb7ccd7a8d81ebc2c729f505df",
+  "sizeBytes": 9196479,
+  "publishedAt": "2026-10-23T15:09:42Z",
   "channel": "preview",
-  "publishedAt": "2026-11-16T20:02:17.9088823Z",
-  "sha256": "58c5c9bcf84f7b3a91c2601eda67e02fbaab025553ac1d9e2d254b478296ea40",
-  "version": "0.2.17",
-  "sizeBytes": 10812765
+  "version": "0.1.4"
 }
