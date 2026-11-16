@@ -1,9 +1,9 @@
 {
-  "sizeBytes": 10759416,
-  "version": "0.2.13",
-  "revision": "c20d4b95",
+  "sha256": "dcdd2c49c672a7c0a273af58dd44656ea21a9abf8617c72b4f18eee0e6e97c30",
+  "revision": "d65b8676",
+  "version": "0.2.14",
+  "name": "GOLOS_0.2.14_x64-Groq-Connected.exe",
   "channel": "preview",
-  "publishedAt": "2026-11-16T13:21:49.8706897Z",
-  "sha256": "111a301cb03935de324cad1273c1ab0c62f13065546834d4d840c8608351611d",
-  "name": "GOLOS_0.2.13_x64-Reliable-Summaries.exe"
+  "publishedAt": "2026-11-16T13:48:36.1337945Z",
+  "sizeBytes": 10787846
 }
