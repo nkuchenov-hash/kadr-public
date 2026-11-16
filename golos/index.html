@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#101516">
-<meta name="description" content="GOLOS — быстрая голосовая диктовка для Windows. Скачать тестовую версию.">
+<meta name="description" content="GOLOS для Windows — быстрая голосовая диктовка, аудиозаписи, транскрипция и саммари.">
 <title>GOLOS — Скачать для Windows</title>
 <style>
 :root { color-scheme: dark; --bg:#101516; --panel:#172023; --line:#2c393b; --fg:#ecf8f6; --muted:#9aacaa; --accent:#66e5cf; --accent2:#0ea99e; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
@@ -51,14 +51,14 @@ footer a{color:var(--accent)}
 <h1><span data-ru="Говори." data-en="Speak.">Говори.</span><br><span style="color:var(--fg)" data-ru="Текст готов." data-en="Text appears.">Текст готов.</span></h1>
 <p class="desc" data-ru="Диктовка прямо в любое приложение. Локальные модели, горячая клавиша и мгновенная вставка текста — главные цели GOLOS." data-en="Voice typing straight into your apps. Local speech models, a keyboard shortcut, and fast text insertion — the core goals of GOLOS.">Диктовка прямо в любое приложение. Локальные модели, горячая клавиша и мгновенная вставка текста — главные цели GOLOS.</p>
 <div class="actions">
-<a class="download" id="download" href="../downloads/GOLOS-Setup.exe" download="GOLOS-Setup.exe"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m-5-5 5 5 5-5M4 17v3h16v-3"/></svg><span data-ru="Скачать для Windows" data-en="Download for Windows">Скачать для Windows</span></a>
+<a class="download disabled" id="download" href="#" aria-disabled="true" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m-5-5 5 5 5-5M4 17v3h16v-3"/></svg><span data-ru="Проверка нового выпуска" data-en="Validating new release">Проверка нового выпуска</span></a>
 <div class="meta"><strong>Windows 10/11 · x64</strong><span id="version">GOLOS · Preview</span></div>
 </div>
 <p class="status" id="status" role="status" aria-live="polite"></p>
 <section class="details">
 <article><h2 data-ru="Локальная диктовка" data-en="Local dictation">Локальная диктовка</h2><p data-ru="Распознавание GigaAM v3 и Parakeet на вашем компьютере." data-en="GigaAM v3 and Parakeet recognition on your computer.">Распознавание GigaAM v3 и Parakeet на вашем компьютере.</p></article>
 <article><h2 data-ru="Вставка по горячей клавише" data-en="Hotkey-to-paste">Вставка по горячей клавише</h2><p data-ru="Диктуйте в активное текстовое поле без копирования вручную." data-en="Dictate into the active text field without copying manually.">Диктуйте в активное текстовое поле без копирования вручную.</p></article>
-<article><h2 data-ru="Тестовая сборка" data-en="Preview build">Тестовая сборка</h2><p data-ru="Это предварительная версия. Установщик обновляет уже установленный GOLOS." data-en="This is a preview build. The installer updates your existing GOLOS.">Это предварительная версия. Установщик обновляет уже установленный GOLOS.</p></article>
+<article><h2 data-ru="Новая аудиобиблиотека" data-en="New audio library">Новая аудиобиблиотека</h2><p data-ru="Карточки аудиозаписей, поиск по транскриптам, саммари и разделение записей с ПК и телефона." data-en="Recording cards, transcript search, summaries and clear PC/phone origin labels.">Карточки аудиозаписей, поиск по транскриптам, саммари и разделение записей с ПК и телефона.</p></article>
 </section>
 </main>
 <footer><span data-ru="GOLOS · Публичные тестовые сборки" data-en="GOLOS · Public preview builds">GOLOS · Публичные тестовые сборки</span> · <a href="../downloads/GOLOS-Setup.sha256" data-ru="SHA-256 установщика" data-en="Installer SHA-256">SHA-256 установщика</a></footer>
@@ -71,23 +71,37 @@ function updateLanguage(l){lang=l;document.documentElement.lang=l;texts.forEach(
 document.querySelector('#ru').addEventListener('click',()=>updateLanguage('ru'));
 document.querySelector('#en').addEventListener('click',()=>updateLanguage('en'));
 const status=document.querySelector('#status'),version=document.querySelector('#version');
+const download=document.querySelector('#download'),downloadLabel=download.querySelector('span');
 const manifestUrl='./release.json';
 fetch(manifestUrl,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('release metadata HTTP '+r.status);return r.json()}).then(release=>{
  const revision=typeof release.revision==='string'&&/^[a-f0-9]{8}$/i.test(release.revision)?release.revision:'preview';
  const size=Number(release.sizeBytes);
  const semanticVersion=typeof release.version==='string'?release.version:(revision==='607aaaec'?'0.1.1':null);
  version.textContent=(semanticVersion?'GOLOS '+semanticVersion+' · ':'Preview · ')+revision+(Number.isFinite(size)&&size>0?' · '+(size/1e6).toFixed(1)+' MB':'');
- if(revision==='a4805309'){
-   status.textContent=lang==='ru'?'Опубликована тестовая сборка от 19 октября. Исправления RU/EN и длинной диктовки пока не включены.':'Preview from October 19. RU/EN and long dictation fixes are not yet included.';
- }else if(revision==='607aaaec'){
-   status.textContent=lang==='ru'?'Версия 0.1.1: автоматическое определение языка, сохранение WAV и аудиоплеер в истории.':'Version 0.1.1: automatic language selection, saved WAVs, and audio playback in History.';
- }else if(revision==='c8e30259'){
-   status.textContent=lang==='ru'?'Версия 0.1.2: исправлена подготовка потокового Auto, история компактнее, логи читаемее, финальные уведомления отключены.':'Version 0.1.2: native Auto streaming fix, compact History, smaller logs, and no final pop-ups.';
- }else{
-   status.textContent='';
+ const parts=String(semanticVersion||'').split('.').map(Number);
+ const isNew=parts.length===3 && parts.every(Number.isFinite) && (parts[0]>0 || parts[1]>2 || (parts[1]===2 && parts[2]>=11));
+ const verified=typeof release.sha256==='string'&&/^[a-f0-9]{64}$/i.test(release.sha256)&&Number.isFinite(size)&&size>5000000;
+ if(isNew && verified){
+   download.classList.remove('disabled');
+   download.href='../downloads/GOLOS-Setup.exe';
+   download.setAttribute('download','GOLOS-Setup.exe');
+   download.setAttribute('aria-disabled','false');
+   download.removeAttribute('tabindex');
+   downloadLabel.dataset.ru='Скачать GOLOS '+semanticVersion;
+   downloadLabel.dataset.en='Download GOLOS '+semanticVersion;
+   downloadLabel.textContent=downloadLabel.dataset[lang];
+   status.textContent=lang==='ru'?'Новая версия с обновлённой аудиобиблиотекой опубликована.':'New version with redesigned audio library is published.';
+   return;
  }
+ downloadLabel.dataset.ru='Новый установщик готовится';
+ downloadLabel.dataset.en='New installer is being prepared';
+ downloadLabel.textContent=downloadLabel.dataset[lang];
+ status.textContent=lang==='ru'
+   ?'GOLOS 0.2.11 проходит проверку сборки. Старые версии временно не предлагаются как новые.'
+   :'GOLOS 0.2.11 is awaiting build verification. Older versions are not being presented as new.';
+ return;
 }).catch(()=>{
- status.textContent=lang==='ru'?'Не удалось проверить номер версии. Ссылка на установщик остаётся доступной.':'Could not check the version number. Installer download remains available.';
+ status.textContent=lang==='ru'?'Не удалось проверить публикацию новой версии. Скачивание пока недоступно.':'Could not verify the new release. Download is temporarily unavailable.';
 });
 })();
 </script>
