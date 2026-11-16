@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: golos-0-2-11-recordings-redesign
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-publish:
