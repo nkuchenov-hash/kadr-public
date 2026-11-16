@@ -1,20 +1,20 @@
 {
   "product": "KADR",
   "schema_version": 1,
-  "current_version": "1.0.37",
+  "current_version": "1.0.39",
   "channel": "stable",
-  "release_date": "2026-11-13",
-  "published_at": "2026-11-13T13:32:20.093Z",
-  "source_commit": "377c8e768b8b106938011152fdcdd675ddc332ec",
-  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/43433954643",
-  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.37",
+  "release_date": "2026-11-16",
+  "published_at": "2026-11-16T11:27:09.810584+00:00",
+  "source_commit": "c95c2d3742767aadd96a57653c1442f6a46a1dd7",
+  "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/43856582741",
+  "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.39",
   "windows": {
-    "version": "1.0.37",
-    "build": 37,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.37/KADR-Setup-1.0.37.exe",
-    "filename": "KADR-Setup-1.0.37.exe",
-    "size_bytes": 12818731,
-    "sha256": "b0491281783c3cad6282a5641689d3c443100aad11a5c28877bedaac3692ef61",
+    "version": "1.0.39",
+    "build": 39,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.39/KADR-Setup-1.0.39.exe",
+    "filename": "KADR-Setup-1.0.39.exe",
+    "size_bytes": 12817810,
+    "sha256": "270ef3f605a9d328b402862f234896743007140001e4b7c4328aa60968b2f192",
     "version_location": "Settings > About and tray"
   },
   "android": {
@@ -51,6 +51,6 @@
     "capture_eraser_widget_test": "passed",
     "capture_ux_source_contract_tests": "passed"
   },
-  "notes": "Windows 1.0.37 stable: outside-first screenshot action/tool panel placement; legible hand icon and larger glyphs; eraser removes touched annotations with undo; live selection resize repaint. Flutter 3.47.9. Dart tests and protected UI/editor guards passed, verified exact installed binary and 8 real installed cold starts with 80 tray cycles. Physical screenshot UX and mobile transfer on user's PC are not yet verified.",
+  "notes": "KADR Windows 1.0.39 stable fixes action panels never-left in adjusting and locked editor. Verified exact binary installed, 8 cold starts, 80 tray open-close cycles. Physical on-PC capture UX remains unverified.",
   "current_version_scope": "windows"
 }
