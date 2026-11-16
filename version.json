@@ -18,19 +18,21 @@
     "version_location": "Settings > About and tray"
   },
   "android": {
-    "version": "1.0.34",
-    "build": 44,
-    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.34-rc/KADR-Mobile-1.0.34.apk",
-    "filename": "KADR-Mobile-1.0.34.apk",
+    "version": "1.0.35",
+    "build": 45,
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.35-golos-bridge-rc/KADR-Mobile-1.0.35.apk",
+    "filename": "KADR-Mobile-1.0.35.apk",
     "version_location": "Settings > bottom",
-    "checksum_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.34-rc/SHA256SUMS.txt",
-    "release_date": "2026-11-14",
-    "source_commit": "85e9cb09a6a9e5380e8d504f68262a12e91a1270",
-    "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/43529298080",
+    "checksum_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-mobile-1.0.35-golos-bridge-rc/SHA256SUMS.txt",
+    "release_date": "2026-11-15",
+    "source_commit": "1780ea20933581b60c0eb6b6aef075b2eb822463",
+    "verification_run": "https://github.com/nkuchenov-hash/kadr-public/actions/runs/43734391743",
     "physical_phone_to_pc_delivery": "not_verified",
-    "size_bytes": 52065037,
+    "size_bytes": 52065157,
     "physical_android_16_acceptance": "not_verified",
-    "release_status": "release_candidate"
+    "release_status": "release_candidate",
+    "release_url": "https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-mobile-1.0.35-golos-bridge-rc",
+    "sha256": "dda8bd3f8be600ef7d13ab2e3a3f7cfa1881ef96543a3af7befce8b5cac17778"
   },
   "validation": {
     "windows_ci": "passed",
@@ -52,5 +54,15 @@
     "capture_ux_source_contract_tests": "passed"
   },
   "notes": "KADR Windows 1.0.39 stable fixes action panels never-left in adjusting and locked editor. Verified exact binary installed, 8 cold starts, 80 tray open-close cycles. Physical on-PC capture UX remains unverified.",
-  "current_version_scope": "windows"
+  "current_version_scope": "windows",
+  "windows_preview": {
+    "version": "1.0.38",
+    "channel": "release_candidate",
+    "feature": "GOLOS audio bridge",
+    "download_url": "https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.38-golos-audio-rc/KADR-Setup-1.0.38-GOLOS-Audio-Preview.exe",
+    "sha256": "7997ee1e94a6be629216eb9d1c1ce0ed28b4eee2996883eafd33aad25d0b908e",
+    "size_bytes": 12824404,
+    "prerelease": true,
+    "notes": "Optional GOLOS audio handoff preview; stable KADR screenshot utility is Windows 1.0.39."
+  }
 }
