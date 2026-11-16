@@ -1,0 +1,263 @@
+name: GOLOS 0.2.15 Windows — Mobile Transfer Recovery
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/golos-mobile-transfer-recovery-0215-release.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: golos-0-2-15-mobile-transfer
+  cancel-in-progress: true
+
+jobs:
+  build-publish:
+    runs-on: windows-2022
+    timeout-minutes: 115
+    steps:
+      - name: Checkout public distribution website
+        uses: actions/checkout@v4
+      - name: Checkout verified PRIVATE GOLOS snapshot
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: 082df4ec8ad007948b7dca6a3377ad3fb819f912
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          path: private-ci
+          persist-credentials: false
+      - name: Prepare isolated GOLOS-only workspace
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = "private-ci/golos-ci-src"
+          $target = "$env:RUNNER_TEMP/GOLOS"
+          if (-not (Test-Path "$source/src-tauri/Cargo.toml")) { throw 'Private GOLOS snapshot missing' }
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          Copy-Item -Path "$source/*" -Destination $target -Recurse -Force
+          Copy-Item -Path "$source/.*" -Destination $target -Recurse -Force -ErrorAction SilentlyContinue
+          $config = Get-Content "$target/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          if ($config.version -ne '0.2.15') { throw 'GOLOS release version mismatch' }
+          if (-not (Select-String -Path "$target/src-tauri/src/commands.rs" -Pattern "STREAM_FINALIZED_FAST_INSERT" -Quiet)) { throw 'GOLOS 0.2.10 fast-insert fix missing' }
+          if (-not (Select-String -Path "$target/src/screens/LogScreen.tsx" -Pattern "followRef" -Quiet)) { throw 'GOLOS 0.2.11 log scroll fix missing' }
+          if (-not (Test-Path "$target/src/components/RecordingReader.tsx")) { throw 'Approved recording reader missing' }
+          if (-not (Test-Path "$target/src/components/RecordingAudioPlayer.tsx")) { throw 'Real audio waveform player missing' }
+          if (-not (Test-Path "$target/src/components/SummaryProgressPanel.tsx")) { throw 'AI summary progress panel missing' }
+          if (-not (Select-String -Path "$target/src-tauri/src/call_recorder_summary.rs" -Pattern 'call-recording-summary-progress' -Quiet)) { throw 'Summary progress streaming missing' }
+          if (-not (Select-String -Path "$target/src-tauri/src/call_recorder_summary.rs" -Pattern 'resolve_summary_model' -Quiet)) { throw 'Legacy model migration missing' }
+          if (-not (Select-String -Path "$target/src/screens/SettingsScreen.tsx" -Pattern 'openai/gpt-oss-20b' -Quiet)) { throw 'Supported Groq model chooser missing' }
+          if (-not (Test-Path "$target/src-tauri/src/groq_credentials.rs")) { throw 'Groq Credential Manager integration missing' }
+          if (-not (Test-Path "$target/src/components/GroqProviderPanel.tsx")) { throw 'Groq provider setup UI missing' }
+          if (-not (Select-String -Path "$target/src-tauri/src/groq_credentials.rs" -Pattern 'probe' -Quiet)) { throw 'Provider inference verification missing' }
+          if (-not (Select-String -Path "$target/src-tauri/src/call_recorder_summary.rs" -Pattern 'effective_key' -Quiet)) { throw 'Summary integration missing live credentials' }
+          if (-not (Select-String -Path "$target/src-tauri/src/transcribe.rs" -Pattern 'openai/gpt-oss-20b' -Quiet)) { throw 'Supported Groq dictation postprocessing model missing' }
+
+          if (-not (Select-String -Path "$target/src-tauri/src/call_recorder_summary.rs" -Pattern 'SUMMARY_TIMEOUT' -Quiet)) { throw 'Timeout/retry protection missing' }
+          if (-not (Select-String -Path "$target/src/components/AudioRecordingCard.tsx" -Pattern 'recording-summary-failure' -Quiet)) { throw 'Actionable failure UI missing' }
+
+          if (-not (Select-String -Path "$target/src-tauri/src/call_recorder_waveform.rs" -Pattern 'track_envelope' -Quiet)) { throw 'Real WAV amplitude analysis missing' }
+          if (-not (Select-String -Path "$target/src-tauri/src/mobile_bridge.rs" -Pattern '"origin":"phone"' -Quiet)) { throw 'Phone recording provenance missing' }
+          $buildScript = "$target/src-tauri/build.rs"
+          $buildCode = Get-Content $buildScript -Raw
+          $anchor = 'let commit = git_commit_label();'
+          if (-not $buildCode.Contains($anchor)) { throw 'Build ID override anchor changed' }
+          $buildCode = $buildCode.Replace($anchor, 'let commit = std::env::var("GOLOS_SOURCE_SHA_OVERRIDE").unwrap_or_else(|_| git_commit_label());')
+          [System.IO.File]::WriteAllText($buildScript, $buildCode)
+          "GOLOS_FIXED_SOURCE_SHA=082df4ec" >> $env:GITHUB_ENV
+          "GOLOS_SOURCE_SHA_OVERRIDE=082df4ec" >> $env:GITHUB_ENV
+          Write-Host "GOLOS 0.2.15 source snapshot verified; revision 082df4ec"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/GOLOS/src-tauri
+          cache-on-failure: true
+      - name: Generate original GOLOS brand icons
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tools = "$env:RUNNER_TEMP/golos-icon-tools"
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          & npm install --prefix $tools --no-audit --no-fund --silent sharp png-to-ico@2.1.8 *> "$env:RUNNER_TEMP/golos-icon-install.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Icon dependencies unavailable' }
+          $source = "$env:RUNNER_TEMP/GOLOS/src/assets/golos-app-icon.svg"
+          $iconDir = "$env:RUNNER_TEMP/GOLOS/src-tauri/icons"
+          New-Item -ItemType Directory -Force $iconDir | Out-Null
+          $js = @'
+          const fs=require('fs');
+          const path=require('path');
+          const root=process.env.RUNNER_TEMP;
+          const sharp=require(path.join(root,'golos-icon-tools/node_modules/sharp'));
+          const pngToIco=require(path.join(root,'golos-icon-tools/node_modules/png-to-ico'));
+          const src=fs.readFileSync(path.join(root,'GOLOS/src/assets/golos-app-icon.svg'));
+          const out=path.join(root,'GOLOS/src-tauri/icons');
+          (async()=> {
+            const buffers=await Promise.all([16,32,48,64,128,256].map(n=>sharp(src).resize(n,n).png().toBuffer()));
+            fs.writeFileSync(path.join(out,'icon.png'),buffers[buffers.length-1]);
+            fs.writeFileSync(path.join(out,'icon.ico'),await pngToIco(buffers));
+          })().catch(()=>process.exit(1));
+          '@
+          $script="$tools/generate.cjs"
+          [System.IO.File]::WriteAllText($script,$js)
+          node $script *> "$env:RUNNER_TEMP/golos-icon-generate.log"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$iconDir/icon.ico")) { throw 'GOLOS brand icon generation failed' }
+      - name: Verify frontend and architecture tests
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/GOLOS
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
+          npm run test:architecture
+          if ($LASTEXITCODE -ne 0) { throw 'Architecture tests failed' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
+      - name: Check mobile transfer compatibility source
+        shell: pwsh
+        run: |
+          $bridge = "$env:RUNNER_TEMP/GOLOS/src-tauri/src/mobile_bridge.rs"
+          if (-not (Select-String -Path $bridge -Pattern 'consume_upload' -Quiet)) { throw 'Idempotent HTTP upload missing' }
+          if (-not (Select-String -Path $bridge -Pattern 'recording_upload_status' -Quiet)) { throw 'Upload preflight missing' }
+          if (-not (Select-String -Path $bridge -Pattern 'duplicate_upload_consumes_all_bytes' -Quiet)) { throw 'Duplicate upload regression test missing' }
+
+      - name: Verify Rust on Windows
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/GOLOS/src-tauri
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cargo fmt
+          if ($LASTEXITCODE -ne 0) { throw 'Rust format failed' }
+          cargo fmt --check
+          if ($LASTEXITCODE -ne 0) { throw 'Rust formatting check failed' }
+          # ort-sys rc12 may receive dangling DLL symlinks from the Windows
+          # archive, so its fs::copy fallback crashes with OS error 3.
+          $metadata = cargo metadata --format-version 1 | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed' }
+          $ort = @($metadata.packages | Where-Object { $_.name -eq 'ort-sys' -and $_.version -eq '2.0.0-rc.12' })
+          if ($ort.Count -ne 1) { throw 'ORT package metadata missing' }
+          $path = Join-Path (Split-Path $ort[0].manifest_path -Parent) 'build/dynamic_link.rs'
+          $code = Get-Content $path -Raw
+          $original = 'fs::copy(&lib_path, &out_path).unwrap();'
+          $replacement = 'if lib_path.exists() { fs::create_dir_all(out_path.parent().unwrap()).unwrap(); fs::copy(&lib_path, &out_path).unwrap_or_else(|e| panic!("ORT_COPY_FAIL source={} destination={} error={e}", lib_path.display(), out_path.display())); } else { println!("cargo:warning=ORT_DLL_DANGLING_SOURCE {}", lib_path.display()); }'
+          if ($code.Contains($original)) {
+            [System.IO.File]::WriteAllText($path, $code.Replace($original, $replacement))
+            Write-Host 'Applied scoped ort-sys rc12 workaround'
+          } else {
+            Write-Host 'ORT source does not have the legacy copy statement; preserving upstream implementation'
+          }
+          foreach ($folder in @('target/release','target/release/deps','target/release/examples')) {
+            New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          }
+          Write-Host 'Applied scoped ORT rc12 clean-runner workaround'
+          # Build test binaries before placing runtime DLL dependencies.
+          cargo test --release --no-run
+          if ($LASTEXITCODE -ne 0) { throw 'Rust test compilation failed' }
+          $root = (Resolve-Path 'target/release').Path
+          $dllFiles = @(Get-ChildItem (Join-Path $root 'build') -Recurse -File -Filter '*.dll' -ErrorAction SilentlyContinue)
+          $dllFiles = @($dllFiles | Where-Object { $_.Name.StartsWith('transcribe') -or $_.Name.StartsWith('ggml') -or $_.Name.StartsWith('onnxruntime') -or $_.Name -eq 'DirectML.dll' })
+          if (-not @($dllFiles | Where-Object { $_.Name -eq 'transcribe.dll' }).Count) { throw 'Transcribe runtime library missing after compile' }
+          $exeFiles = @(Get-ChildItem $root -Recurse -File -Filter 'golos-*.exe' -ErrorAction SilentlyContinue)
+          if ($exeFiles.Count -lt 1) { throw 'No compiled GOLOS test executable' }
+          $dirs = @($exeFiles | ForEach-Object { $_.DirectoryName } | Sort-Object -Unique)
+          $dirs += (Join-Path $root 'deps')
+          $dirs += $root
+          foreach ($folder in ($dirs | Sort-Object -Unique)) {
+            foreach ($dll in $dllFiles) {
+              $dest = Join-Path $folder $dll.Name
+              if (-not (Test-Path $dest)) { Copy-Item -LiteralPath $dll.FullName -Destination $dest -Force }
+            }
+          }
+          Write-Host ('Prepared DLLs for test process: ' + (($dllFiles | Select-Object -ExpandProperty Name -Unique) -join ', '))
+          cargo test --release
+          if ($LASTEXITCODE -ne 0) { throw 'Rust regression tests failed' }
+      - name: Build NSIS installer
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/GOLOS
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run tauri build
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Tauri installer compilation failed' }
+      - name: Verify clean Windows installation of redesigned GOLOS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setups = @(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
+          if ($setups.Count -ne 1) { throw "Expected one installer" }
+          $process = Start-Process -FilePath $setups[0].FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer exit code $($process.ExitCode)" }
+          $exe = Join-Path $env:LOCALAPPDATA 'GOLOS/golos.exe'
+          if (-not (Test-Path $exe)) {
+            $files = @(Get-ChildItem $env:LOCALAPPDATA -Filter 'golos.exe' -File -Recurse -ErrorAction SilentlyContinue)
+            if ($files.Count -eq 0) { throw 'Installed executable missing' }
+            $exe = $files[0].FullName
+          }
+          $version = (Get-Item $exe).VersionInfo.ProductVersion
+          if ($version -notmatch '^0\.2\.14(\.|$)') { throw "Wrong version $version" }
+          Write-Host "GOLOS 0.2.15 installed smoke test PASS: $exe"
+      - name: Verify and publish installable 0.2.15 and update GOLOS website
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setups = @(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
+          if ($setups.Count -ne 1) { throw "Expected exactly one installer" }
+          $asset = "GOLOS_0.2.15_x64-Mobile-Transfer-Fix.exe"
+          Copy-Item $setups[0].FullName $asset -Force
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $asset).Path)
+          if ($bytes.Length -lt 5000000 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw 'Installer invalid' }
+          $hash=(Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $asset" | Set-Content -Encoding ascii SHA256SUMS.txt
+          $notes = @'
+          GOLOS 0.2.15 Windows — Resilient GOLOS Notes WAV Transfer.
+          - Fixes Android "Software caused connection abort" when re-uploading a WAV previously saved by Windows: desktop now fully consumes fixed-length HTTP body before sending acknowledgement.
+          - Adds authenticated GET /v1/recordings/{id}/status for GOLOS Notes 0.1.13 to verify an already committed recording before re-upload.
+          - Full duplicate upload returns 200 with alreadyExists, not an abrupt connection close.
+          - Preserves GOLOS 0.2.14 Groq provider setup and validation, 0.2.13 summary reliability and original recording data.
+          - Native unit tests for consumed duplicate and truncated payload.
+          - Frontend, Rust, NSIS installation smoke checks before publication.
+          - Physical Android-to-PC transfer still requires a real network roundtrip test.
+          '@
+          $notes | Set-Content release-notes.md -Encoding utf8
+          gh release create golos-v0.2.15-groq-provider-rc $asset SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.15 Windows — Reliable Mobile WAV Transfer" --notes-file release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
+          New-Item -ItemType Directory -Force downloads, golos | Out-Null
+          Copy-Item $asset downloads/GOLOS-Setup.exe -Force
+          "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
+          $manifest = @{
+            name = $asset
+            revision = "082df4ec"
+            sha256 = $hash
+            sizeBytes = $bytes.Length
+            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+            channel = 'preview'
+            version = '0.2.15'
+          }
+          $manifest | ConvertTo-Json | Set-Content -Encoding utf8 golos/release.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
+          git commit -m 'Publish verified GOLOS 0.2.15 Windows Groq connection'
+          if ($LASTEXITCODE -ne 0) { throw 'GOLOS website update commit failed' }
+          git pull --rebase origin main
+          if ($LASTEXITCODE -ne 0) { throw 'GOLOS website rebase failed' }
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'GOLOS website push failed' }
+          Write-Host "PUBLISHED_GOLOS_0211 https://$($env:GITHUB_REPOSITORY_OWNER).github.io/kadr-public/golos/"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GOLOS-0.2.15-Windows-Mobile-Transfer
+          path: |
+            GOLOS_0.2.15_x64-Mobile-Transfer-Fix.exe
+            SHA256SUMS.txt
+          if-no-files-found: ignore
