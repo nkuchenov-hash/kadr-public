@@ -200,18 +200,38 @@ jobs:
           if ($setups.Count -ne 1) { throw "Expected one installer" }
           $process = Start-Process -FilePath $setups[0].FullName -ArgumentList '/S' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer exit code $($process.ExitCode)" }
-          $exe = Join-Path $env:LOCALAPPDATA 'GOLOS/golos.exe'
-          if (-not (Test-Path $exe)) {
-            $files = @(Get-ChildItem $env:LOCALAPPDATA -Filter 'golos.exe' -File -Recurse -ErrorAction SilentlyContinue)
-            if ($files.Count -eq 0) { throw 'Installed executable missing' }
-            $exe = $files[0].FullName
+          # Tauri 'both' defaults to a machine-wide install in silent mode.
+          # Existing users may choose per-user installation in interactive mode.
+          $candidates = @(
+            (Join-Path $env:LOCALAPPDATA 'GOLOS/golos.exe'),
+            (Join-Path $env:LOCALAPPDATA 'Programs/GOLOS/golos.exe'),
+            (Join-Path $env:ProgramFiles 'GOLOS/golos.exe'),
+            (Join-Path $env:ProgramFiles 'GOLOS/bin/golos.exe')
+          )
+          if (${env:ProgramFiles(x86)}) {
+            $candidates += Join-Path ${env:ProgramFiles(x86)} 'GOLOS/golos.exe'
+          }
+          $exe = $candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $exe) {
+            $roots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) |
+              Where-Object { $_ -and (Test-Path $_) }
+            $found = @($roots | ForEach-Object {
+              Get-ChildItem $_ -Directory -Filter '*GOLOS*' -ErrorAction SilentlyContinue |
+                Get-ChildItem -Recurse -File -Filter 'golos.exe' -ErrorAction SilentlyContinue
+            })
+            if ($found.Count -eq 0) { throw 'GOLOS installed executable not found in per-user or per-machine locations' }
+            $exe = $found[0].FullName
           }
           $version = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($version -notmatch '^0\.2\.15(\.|$)') { throw "Wrong version $version" }
+          if ($version -notmatch '^0\.2\.16(\.|$)') { throw "Wrong version $version at $exe" }
           $tcpRule = @(Get-NetFirewallRule -DisplayName 'GOLOS Notes LAN' -ErrorAction SilentlyContinue)
           $udpRule = @(Get-NetFirewallRule -DisplayName 'GOLOS Notes Discovery' -ErrorAction SilentlyContinue)
           if ($tcpRule.Count -ne 1 -or $udpRule.Count -ne 1) {
             throw "GOLOS installer did not configure firewall: tcp=$($tcpRule.Count), udp=$($udpRule.Count)"
+          }
+          $tcpApplication = $tcpRule | Get-NetFirewallApplicationFilter
+          if ($tcpApplication.Program -notlike '*golos.exe') {
+            throw "TCP firewall rule does not target GOLOS executable: $($tcpApplication.Program)"
           }
           $tcpFilter = $tcpRule | Get-NetFirewallPortFilter
           $udpFilter = $udpRule | Get-NetFirewallPortFilter
