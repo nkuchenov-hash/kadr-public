@@ -1,9 +1,9 @@
 {
-  "sizeBytes": 10797160,
-  "name": "GOLOS_0.2.16_x64-KADR-LAN-Permissions.exe",
-  "revision": "f861a059",
-  "version": "0.2.16",
-  "publishedAt": "2026-11-16T15:22:47.7074447Z",
-  "sha256": "bbc5dd4f881e843ba75892408120c07bc955f1a029012f13a7b9e45205add1e4",
-  "channel": "preview"
+  "revision": "ee1cad7d",
+  "name": "GOLOS_0.2.17_x64-Recording-Actions.exe",
+  "channel": "preview",
+  "publishedAt": "2026-11-16T20:02:17.9088823Z",
+  "sha256": "58c5c9bcf84f7b3a91c2601eda67e02fbaab025553ac1d9e2d254b478296ea40",
+  "version": "0.2.17",
+  "sizeBytes": 10812765
 }
