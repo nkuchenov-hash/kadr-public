@@ -1,0 +1,29 @@
+name: GOLOS PR21 private source access probe
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/golos-pr21-access-probe.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout GOLOS PR21 without persisting credentials
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/GOLOS
+          ref: feat/recordings-workspace-redesign-20261116
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: golos-src
+      - name: Validate private source location and approved design
+        shell: bash
+        run: |
+          test -f golos-src/src-tauri/Cargo.toml
+          test -f golos-src/src/components/RecordingReader.tsx
+          test -f golos-src/src/styles/recordings-workspace.css
+          echo "GOLOS_PR21_PRIVATE_SOURCE_ACCESS_OK"
