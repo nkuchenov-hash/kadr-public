@@ -200,7 +200,7 @@ jobs:
             $exe = $files[0].FullName
           }
           $version = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($version -notmatch '^0\.2\.14(\.|$)') { throw "Wrong version $version" }
+          if ($version -notmatch '^0\.2\.15(\.|$)') { throw "Wrong version $version" }
           Write-Host "GOLOS 0.2.15 installed smoke test PASS: $exe"
       - name: Verify and publish installable 0.2.15 and update GOLOS website
         shell: pwsh
@@ -245,7 +245,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
-          git commit -m 'Publish verified GOLOS 0.2.15 Windows Groq connection'
+          git commit -m 'Publish verified GOLOS 0.2.15 Windows mobile transfer recovery'
           if ($LASTEXITCODE -ne 0) { throw 'GOLOS website update commit failed' }
           git pull --rebase origin main
           if ($LASTEXITCODE -ne 0) { throw 'GOLOS website rebase failed' }
