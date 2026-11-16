@@ -1,0 +1,233 @@
+name: KADR Windows 1.0.39 verified never-left capture fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kadr-windows-139-never-left-stable.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: kadr-windows-139-stable-release
+  cancel-in-progress: false
+
+jobs:
+  verify-build-publish:
+    runs-on: windows-2022
+    timeout-minutes: 95
+    env:
+      SOURCE_SHA: e36f3a8d59281385289ed82702662d3c30c31aa3
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout public site and release metadata
+        uses: actions/checkout@v4
+        with:
+          path: website
+          persist-credentials: true
+      - name: Checkout exact private KADR hotfix commit
+        uses: actions/checkout@v4
+        with:
+          repository: nkuchenov-hash/KADR
+          ref: ${{ env.SOURCE_SHA }}
+          token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: source
+      - name: Configure Flutter Windows 3.47.9
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+          cache: true
+      - name: Verify immutable commit and displayed Windows version
+        shell: pwsh
+        run: |
+          if ((git -C source rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Source SHA mismatch' }
+          if ((Get-Content source/pubspec.yaml -Raw) -notmatch '(?m)^version:\s*1\.0\.39\+39\s*$') { throw 'Wrong pubspec version' }
+          if ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -notmatch "version = '1\.0\.39'") { throw 'Wrong About version' }
+          if ((Get-Content source/lib/core/constants/kadr_build_info.dart -Raw) -notmatch "channel = 'Stable'") { throw 'Wrong channel' }
+          $body = Get-Content source/windows/runner/kadr_capture_panel_host.cpp -Raw
+          if ($body -match 'selection.left - kGapPhysical - w') { throw 'Left placement regression' }
+          if (($body.Split('PlaceActionPanelOutsideFirst(').Count - 1) -ne 3) { throw 'Missing outside-first lock/adjust calls' }
+      - name: Resolve Flutter packages
+        working-directory: source
+        run: flutter pub get
+      - name: Analyze source
+        working-directory: source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Validate never-left placement and accepted editor/history behavior
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter test test/capture_action_panel_anchor_contract_test.dart test/capture_eraser_outside_panels_live_resize_test.dart test/capture_toolbar_inside_fallback_test.dart test/p0_native_capture_panels_test.dart test/figma_toolbar_13_102_contract_test.dart test/capture_editor_locked_contract_test.dart test/p0_native_region_capture_test.dart test/p0_tray_hotkey_overlay_test.dart test/tray_startup_performance_contract_test.dart test/history_recent_recovery_test.dart test/version_contract_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Windows capture regression tests failed' }
+          git fetch origin baseline/working-ui-0983ab6:refs/remotes/origin/baseline/working-ui-0983ab6
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read accepted UI baseline' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/verify_capture_editor_lock.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Protected editor regression failed' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tool/verify_working_ui_baseline.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Accepted UI baseline regression failed' }
+      - name: Build real Windows release
+        working-directory: source
+        shell: pwsh
+        run: |
+          flutter build windows --release "--dart-define=KADR_SOURCE_SHA=$env:SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compile failed' }
+          if (-not (Test-Path build/windows/x64/runner/Release/kadr.exe)) { throw 'Missing compiled EXE' }
+          $version = (Get-Item build/windows/x64/runner/Release/kadr.exe).VersionInfo.ProductVersion
+          if (-not $version.StartsWith('1.0.39')) { throw "Wrong binary version: $version" }
+      - name: Compile Windows Inno Setup installer
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup unavailable' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" 'source/installer/kadr.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          if (-not (Test-Path 'source/build/installer/KADR-Setup.exe')) { throw 'Missing installer' }
+      - name: Install and verify actual compiled binary identity
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path 'source/build/installer/KADR-Setup.exe').Path
+          $target = Join-Path $env:RUNNER_TEMP 'KADR-Windows-139-verified'
+          $p = Start-Process $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$target") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer failed: $($p.ExitCode)" }
+          if (-not (Test-Path (Join-Path $target 'kadr.exe'))) { throw 'Installed EXE absent' }
+          $original = (Get-FileHash source/build/windows/x64/runner/Release/kadr.exe -Algorithm SHA256).Hash
+          $installed = (Get-FileHash (Join-Path $target 'kadr.exe') -Algorithm SHA256).Hash
+          if ($original -ne $installed) { throw 'Installed EXE is not the tested EXE' }
+          $sourceApp = (Get-FileHash source/build/windows/x64/runner/Release/data/app.so -Algorithm SHA256).Hash
+          $installedApp = (Get-FileHash (Join-Path $target 'data/app.so') -Algorithm SHA256).Hash
+          if ($sourceApp -ne $installedApp) { throw 'Installed Dart image mismatch' }
+          "KADR_INSTALLED_DIR=$target" >> $env:GITHUB_ENV
+      - name: Eight installed cold starts and 80 tray open-close cycles
+        working-directory: source
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 8; $i++) {
+            Write-Host "KADR 1.0.39 real installed smoke attempt $i"
+            powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows_startup_tray_smoke.ps1 -ReleaseDir $env:KADR_INSTALLED_DIR -TrayCycles 10 -StartupTimeoutSeconds 30 -PopupTimeoutSeconds 10
+            if ($LASTEXITCODE -ne 0) { throw "Cold start/tray acceptance failed attempt $i" }
+          }
+      - name: Record published bytes and independent SHA-256
+        shell: pwsh
+        run: |
+          Copy-Item source/build/installer/KADR-Setup.exe KADR-Setup-1.0.39.exe
+          Copy-Item KADR-Setup-1.0.39.exe KADR-Setup.exe
+          $hash = (Get-FileHash KADR-Setup-1.0.39.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $size = (Get-Item KADR-Setup-1.0.39.exe).Length
+          if ($size -lt 10000000) { throw "Installer unexpectedly small: $size" }
+          "$hash  KADR-Setup-1.0.39.exe" | Set-Content KADR-Setup-1.0.39.sha256 -Encoding ascii
+          "$hash  KADR-Setup.exe" | Set-Content KADR-Setup.sha256 -Encoding ascii
+          "INSTALLER_SHA=$hash" >> $env:GITHUB_ENV
+          "INSTALLER_SIZE=$size" >> $env:GITHUB_ENV
+      - name: Archive verified installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: KADR-Windows-1.0.39-Validated-Stable
+          path: |
+            KADR-Setup-1.0.39.exe
+            KADR-Setup-1.0.39.sha256
+          retention-days: 30
+          if-no-files-found: error
+      - name: Publish versioned installer and windows-latest only after tests
+        shell: pwsh
+        run: |
+          @'
+          # KADR Windows 1.0.39 — исправление размещения кнопок
+
+          Мини-панель действий больше никогда не переносится слева от скриншота.
+          Приоритет: справа от выделения, затем снизу или сверху ближе к правому
+          краю, и только при отсутствии свободного места — внутри справа.
+          Основная панель при необходимости сдвигается, сохраняя внешний доступ.
+          Применяется в выделении и при передаче управления редактору.
+
+          Сохранены редактор, ластик, история, PDF/PNG и существующие исправления
+          Windows 1.0.37. Собрано Flutter 3.47.9. Выпуск только после анализа,
+          regression tests, установки настоящего Windows EXE и 8 холодных
+          запусков с 80 циклами трея. Испытания на пользовательском ПК нужны
+          отдельно.
+
+          Source SHA: e36f3a8d59281385289ed82702662d3c30c31aa3
+          '@ | Set-Content release-notes.md -Encoding utf8
+          $repo=$env:GITHUB_REPOSITORY
+          gh release view kadr-windows-1.0.39 --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload kadr-windows-1.0.39 KADR-Setup-1.0.39.exe KADR-Setup-1.0.39.sha256 --clobber --repo $repo
+            gh release edit kadr-windows-1.0.39 --title 'KADR Windows 1.0.39 — Stable' --notes-file release-notes.md --latest --repo $repo
+          } else {
+            gh release create kadr-windows-1.0.39 KADR-Setup-1.0.39.exe KADR-Setup-1.0.39.sha256 --title 'KADR Windows 1.0.39 — Stable' --notes-file release-notes.md --latest --repo $repo
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Versioned release upload failed' }
+          gh release view windows-latest --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload windows-latest KADR-Setup.exe KADR-Setup.sha256 --clobber --repo $repo
+            gh release edit windows-latest --title 'KADR Windows 1.0.39 — Stable' --notes-file release-notes.md --latest --repo $repo
+          } else {
+            gh release create windows-latest KADR-Setup.exe KADR-Setup.sha256 --title 'KADR Windows 1.0.39 — Stable' --notes-file release-notes.md --latest --repo $repo
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'windows-latest release upload failed' }
+          foreach ($tag in @('kadr-windows-1.0.39','windows-latest')) {
+            $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw "Release lookup failed: $tag" }
+            $name = if ($tag -eq 'windows-latest') { 'KADR-Setup.exe' } else { 'KADR-Setup-1.0.39.exe' }
+            $asset = $release.assets | Where-Object { $_.name -eq $name } | Select-Object -First 1
+            if (-not $asset -or $asset.size -ne [long]$env:INSTALLER_SIZE -or $asset.digest -ne "sha256:$env:INSTALLER_SHA") {
+              throw "Release digest/size mismatch: $tag"
+            }
+          }
+      - name: Update public website download links and exact version manifest
+        shell: pwsh
+        run: |
+          @'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          root=Path('website')
+          html=root/'index.html'
+          page=html.read_text(encoding='utf-8')
+          page=page.replace('kadr-windows-1.0.37/KADR-Setup-1.0.37.exe','kadr-windows-1.0.39/KADR-Setup-1.0.39.exe')
+          page=page.replace('Windows: 1.0.37','Windows: 1.0.39')
+          page=page.replace('Windows 1.0.37','Windows 1.0.39')
+          page=page.replace('Windows · v1.0.37','Windows · v1.0.39')
+          if 'kadr-windows-1.0.39/KADR-Setup-1.0.39.exe' not in page:
+              raise SystemExit('Windows version link not changed in home page')
+          html.write_text(page,encoding='utf-8')
+          for rel in ['releases/index.html']:
+              path=root/rel
+              v=path.read_text(encoding='utf-8')
+              path.write_text(v.replace('Windows 1.0.37 · Android','Windows 1.0.39 · Android'),encoding='utf-8')
+          path=root/'version.json'
+          manifest=json.loads(path.read_text(encoding='utf-8'))
+          now=datetime.now(timezone.utc)
+          manifest.update(current_version='1.0.39',channel='stable',release_date=now.strftime('%Y-%m-%d'),
+              published_at=now.isoformat(),source_commit='e36f3a8d59281385289ed82702662d3c30c31aa3',
+              verification_run='https://github.com/nkuchenov-hash/kadr-public/actions/runs/'+__import__('os').environ['GITHUB_RUN_ID'],
+              release_url='https://github.com/nkuchenov-hash/kadr-public/releases/tag/kadr-windows-1.0.39')
+          manifest['windows'].update(version='1.0.39',build=39,
+              download_url='https://github.com/nkuchenov-hash/kadr-public/releases/download/kadr-windows-1.0.39/KADR-Setup-1.0.39.exe',
+              filename='KADR-Setup-1.0.39.exe',size_bytes=int(__import__('os').environ['INSTALLER_SIZE']),
+              sha256=__import__('os').environ['INSTALLER_SHA'])
+          manifest['validation'].update(windows_ci='passed',
+              installed_exe_startup='passed_on_windows_runner',
+              tray_open_close_80x='passed_on_windows_runner',
+              capture_ux_source_contract_tests='passed')
+          manifest['notes']='KADR Windows 1.0.39 stable fixes action panels never-left in adjusting and locked editor. Verified exact binary installed, 8 cold starts, 80 tray open-close cycles. Physical on-PC capture UX remains unverified.'
+          path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          '@ | Set-Content update-site.py -Encoding utf8
+          python update-site.py
+          if ($LASTEXITCODE -ne 0) { throw 'Public site manifest update failed' }
+          git -C website config user.name 'github-actions[bot]'
+          git -C website config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C website add index.html releases/index.html version.json
+          git -C website diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Invalid website diff' }
+          git -C website commit -m 'site: publish verified KADR Windows 1.0.39 stable'
+          if ($LASTEXITCODE -ne 0) { throw 'No website commit created' }
+          git -C website pull --rebase origin main
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot rebase website changes' }
+          git -C website push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Website deployment push failed' }
