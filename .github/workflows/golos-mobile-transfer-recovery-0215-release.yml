@@ -227,7 +227,7 @@ jobs:
           - Physical Android-to-PC transfer still requires a real network roundtrip test.
           '@
           $notes | Set-Content release-notes.md -Encoding utf8
-          gh release create golos-v0.2.15-groq-provider-rc $asset SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.15 Windows — Reliable Mobile WAV Transfer" --notes-file release-notes.md --prerelease
+          gh release create golos-v0.2.15-mobile-transfer-recovery-rc $asset SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.15 Windows — Reliable Mobile WAV Transfer" --notes-file release-notes.md --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
           New-Item -ItemType Directory -Force downloads, golos | Out-Null
           Copy-Item $asset downloads/GOLOS-Setup.exe -Force
