@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - name: Resolve newest public GOLOS installer
+      - name: Resolve latest semantic-version GOLOS installer
         id: latest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,14 +44,25 @@ jobs:
               releases = json.load(response)
           choices = []
           for release in releases:
+              version_match = re.match(r"^golos-v(\d+)\.(\d+)\.(\d+)(?:-|$)", release.get("tag_name", ""), re.I)
+              if not version_match:
+                  continue
+              version = tuple(map(int, version_match.groups()))
               for asset in release.get("assets", []):
-                  if (re.fullmatch(r"GOLOS_PR-\d+_[0-9a-f]{8}_x64-setup\.exe", asset["name"], re.I)
-                      and asset.get("state") == "uploaded"
-                      and asset.get("digest", "").startswith("sha256:")):
-                      choices.append((asset["created_at"], release, asset))
+                  name = asset.get("name", "")
+                  # Modern GOLOS_0.2.x_x64-*.exe and early GOLOS_PR-*_x64-setup.exe.
+                  valid_name = re.fullmatch(r"GOLOS_(?:\d+\.\d+\.\d+|PR-\d+_[0-9a-f]{8})_x64(?:-[A-Za-z0-9-]+)?\.exe", name, re.I)
+                  if valid_name and asset.get("state") == "uploaded" and asset.get("digest", "").startswith("sha256:"):
+                      choices.append((version, asset["created_at"], release, asset))
           if not choices:
-              raise SystemExit("No public GOLOS installer with GitHub SHA256 digest found")
-          _, release, asset = max(choices, key=lambda x: x[0])
+              raise SystemExit("No verified GOLOS Windows installer found")
+          version, _, release, asset = max(choices, key=lambda item: (item[0], item[1]))
+          current_path = __import__("pathlib").Path("golos/release.json")
+          if current_path.exists():
+              current = json.loads(current_path.read_text(encoding="utf-8-sig"))
+              current_version = tuple(map(int, re.match(r"^(\d+)\.(\d+)\.(\d+)$", str(current.get("version", "0.0.0"))).groups()))
+              if current_version > version:
+                  raise SystemExit(f"REFUSING DOWNGRADE: current {current_version} > selected {version}")
           print(f"Selected {release['tag_name']}/{asset['name']} ({asset['size']} bytes)")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"tag={release['tag_name']}\n")
@@ -88,17 +99,20 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, pathlib, re
-          version = re.search(r"PR-\d+_([0-9a-f]{8})", os.environ["ASSET"], re.I)
+          early_sha = re.search(r"PR-\d+_([0-9a-f]{8})", os.environ["ASSET"], re.I)
+          tag_version = re.search(r"^golos-v(\d+\.\d+\.\d+)(?:-|$)", os.environ["TAG"], re.I)
+          if not tag_version:
+              raise SystemExit("Unable to derive GOLOS version from release tag")
+          previous = json.loads(pathlib.Path("golos/release.json").read_text(encoding="utf-8-sig")) if pathlib.Path("golos/release.json").exists() else {}
+          revision = previous.get("revision") if previous.get("version") == tag_version.group(1) and previous.get("sha256") == os.environ["EXPECTED"] else (early_sha.group(1) if early_sha else "preview")
           metadata = {
             "name": os.environ["ASSET"],
-            "revision": version.group(1) if version else "preview",
+            "revision": revision,
             "sha256": os.environ["EXPECTED"],
             "sizeBytes": pathlib.Path("downloads/GOLOS-Setup.exe").stat().st_size,
             "publishedAt": os.environ["CREATED"],
             "channel": "preview",
-            "version": re.search(r"golos-v(\d+\.\d+\.\d+)", os.environ["TAG"]).group(1)
-              if re.search(r"golos-v(\d+\.\d+\.\d+)", os.environ["TAG"])
-              else ("0.1.1" if "607aaaec" in os.environ["ASSET"] else None),
+            "version": tag_version.group(1),
           }
           pathlib.Path("golos/release.json").write_text(
               json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
