@@ -1,9 +1,9 @@
 {
-  "name": "GOLOS_0.2.21_x64-Compact-Shell.exe",
-  "revision": "c00499e6",
-  "channel": "preview",
-  "sizeBytes": 10816825,
-  "version": "0.2.21",
-  "publishedAt": "2026-11-19T09:15:48.4403816Z",
-  "sha256": "7b3b82e6136e73904298566b764d8f707d3fa19c872c24ae02080c6a6cfb155e"
+  "revision": "5cf559da",
+  "sha256": "cd002785780b98d5fb088d584a6e2ddbe4a54d1ccdba2af8b7a49d30d1bbade9",
+  "version": "0.2.22",
+  "name": "GOLOS_0.2.22_x64-Window-Width.exe",
+  "publishedAt": "2026-11-19T09:52:21.9536153Z",
+  "sizeBytes": 10816463,
+  "channel": "preview"
 }
