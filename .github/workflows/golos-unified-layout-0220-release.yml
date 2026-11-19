@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 9eed79a80829f11abece1f153a96b9f1c64ef868
+          ref: c5fdef2b8ee6672ebdb8b0f3f2731a32955a3f6d
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: private-ci
           persist-credentials: false
@@ -96,9 +96,9 @@ jobs:
           if (-not $buildCode.Contains($anchor)) { throw 'Build ID override anchor changed' }
           $buildCode = $buildCode.Replace($anchor, 'let commit = std::env::var("GOLOS_SOURCE_SHA_OVERRIDE").unwrap_or_else(|_| git_commit_label());')
           [System.IO.File]::WriteAllText($buildScript, $buildCode)
-          "GOLOS_FIXED_SOURCE_SHA=9eed79a8" >> $env:GITHUB_ENV
-          "GOLOS_SOURCE_SHA_OVERRIDE=9eed79a8" >> $env:GITHUB_ENV
-          Write-Host "GOLOS 0.2.20 source snapshot verified; revision 9eed79a8"
+          "GOLOS_FIXED_SOURCE_SHA=c5fdef2b" >> $env:GITHUB_ENV
+          "GOLOS_SOURCE_SHA_OVERRIDE=c5fdef2b" >> $env:GITHUB_ENV
+          Write-Host "GOLOS 0.2.20 source snapshot verified; revision c5fdef2b"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -322,7 +322,7 @@ jobs:
           "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
           $manifest = @{
             name = $asset
-            revision = "9eed79a8"
+            revision = "c5fdef2b"
             sha256 = $hash
             sizeBytes = $bytes.Length
             publishedAt = (Get-Date).ToUniversalTime().ToString('o')
