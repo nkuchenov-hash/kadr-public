@@ -1,16 +1,16 @@
-name: GOLOS 0.2.22 Windows — Restored Sidebar and Narrow Window
+name: GOLOS 0.2.23 Windows — Original Sidebar Restore
 
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/golos-window-width-0222-release.yml]
+    paths: [.github/workflows/golos-window-width-0223-release.yml]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: golos-0-2-22-window-width
+  group: golos-0-2-23-original-sidebar
   cancel-in-progress: true
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 5cf559dad2161275e881394232f5033a9c6d996c
+          ref: ca082974000d7ca8ef313ca5528122f34a60d813
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: private-ci
           persist-credentials: false
@@ -39,7 +39,7 @@ jobs:
           Copy-Item -Path "$source/*" -Destination $target -Recurse -Force
           Copy-Item -Path "$source/.*" -Destination $target -Recurse -Force -ErrorAction SilentlyContinue
           $config = Get-Content "$target/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
-          if ($config.version -ne '0.2.22') { throw 'GOLOS release version mismatch' }
+          if ($config.version -ne '0.2.23') { throw 'GOLOS release version mismatch' }
           if ($config.bundle.windows.nsis.installMode -ne 'both') { throw 'KADR parity installer elevation mode missing' }
           if ($config.bundle.windows.nsis.installerHooks -ne './windows/notes-firewall-hooks.nsh') { throw 'NSIS firewall setup hook missing' }
           $hookFile = "$target/src-tauri/windows/notes-firewall-hooks.nsh"
@@ -79,7 +79,7 @@ jobs:
             @("$target/src/components/WindowControls.tsx", "onMinimize"),
             @("$target/src-tauri/capabilities/default.json", "core:window:allow-minimize"),
             @("$target/src-tauri/src/call_recorder.rs", "ensure_named_recording_files"),
-            @("$target/src/styles/globals.css", "--sidebar-w: 166px"),
+            @("$target/src/styles/globals.css", "--sidebar-w: 220px"),
             @("$target/src-tauri/tauri.conf.json", '"width": 1080'),
             @("$target/src-tauri/tauri.conf.json", '"height": 740'),
             @("$target/src/screens/shellLayout.test.ts", "narrows the application WINDOW"),
@@ -103,9 +103,9 @@ jobs:
           if (-not $buildCode.Contains($anchor)) { throw 'Build ID override anchor changed' }
           $buildCode = $buildCode.Replace($anchor, 'let commit = std::env::var("GOLOS_SOURCE_SHA_OVERRIDE").unwrap_or_else(|_| git_commit_label());')
           [System.IO.File]::WriteAllText($buildScript, $buildCode)
-          "GOLOS_FIXED_SOURCE_SHA=5cf559da" >> $env:GITHUB_ENV
-          "GOLOS_SOURCE_SHA_OVERRIDE=5cf559da" >> $env:GITHUB_ENV
-          Write-Host "GOLOS 0.2.22 source snapshot verified; revision 5cf559da"
+          "GOLOS_FIXED_SOURCE_SHA=ca082974" >> $env:GITHUB_ENV
+          "GOLOS_SOURCE_SHA_OVERRIDE=ca082974" >> $env:GITHUB_ENV
+          Write-Host "GOLOS 0.2.23 source snapshot verified; revision ca082974"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -254,7 +254,7 @@ jobs:
             $exe = $found[0].FullName
           }
           $version = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($version -notmatch '^0\.2\.22(\.|$)') { throw "Wrong version $version at $exe" }
+          if ($version -notmatch '^0\.2\.23(\.|$)') { throw "Wrong version $version at $exe" }
           $tcpRule = @(Get-NetFirewallRule -DisplayName 'GOLOS Notes LAN' -ErrorAction SilentlyContinue)
           $udpRule = @(Get-NetFirewallRule -DisplayName 'GOLOS Notes Discovery' -ErrorAction SilentlyContinue)
           if ($tcpRule.Count -ne 1 -or $udpRule.Count -ne 1) {
@@ -285,8 +285,8 @@ jobs:
               throw "GOLOS private LAN addresses not installed: $allowed"
             }
           }
-          Write-Host "GOLOS 0.2.22 installed smoke test PASS: $exe; private TCP/UDP firewall rules present"
-      - name: Verify and publish installable 0.2.22 and update GOLOS website
+          Write-Host "GOLOS 0.2.23 installed smoke test PASS: $exe; private TCP/UDP firewall rules present"
+      - name: Verify and publish installable 0.2.23 and update GOLOS website
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -294,14 +294,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $setups = @(Get-ChildItem "$env:RUNNER_TEMP/GOLOS/src-tauri/target/release/bundle/nsis" -Filter '*-setup.exe' -File)
           if ($setups.Count -ne 1) { throw "Expected exactly one installer" }
-          $asset = "GOLOS_0.2.22_x64-Window-Width.exe"
+          $asset = "GOLOS_0.2.23_x64-Original-Sidebar.exe"
           Copy-Item $setups[0].FullName $asset -Force
           $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $asset).Path)
           if ($bytes.Length -lt 5000000 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw 'Installer invalid' }
           $hash=(Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $asset" | Set-Content -Encoding ascii SHA256SUMS.txt
           $notes = @'
-          GOLOS 0.2.22 Windows — restores approved 0.2.20 sidebar, narrows the INITIAL APPLICATION WINDOW to 1080x740 instead of squeezing the navigation, retaining 0.2.21's consistent headings.
+          GOLOS 0.2.23 Windows — restores original 220px sidebar design with 40px logo, while keeping 1080x740 resizable window and the current page layout.
           - Retains primary Transcribe / Resume / Retry actions directly on recording cards.
           - Puts device/date/view filters, selection and serialized batch transcription in one non-wrapping toolbar.
           - Expands search on demand from a compact button beside New recording, with Escape-to-close.
@@ -309,7 +309,7 @@ jobs:
           - Retains GOLOS 0.2.17 recording classification, editable tags and GOLOS Notes compatibility.
           - Keeps every title fixed outside its scrolling body, eliminating header overlap in all screens.
           - Keeps identical full-width screen content in Settings, Models, Logs, History, Record and Audio recordings.
-          - Restores the earlier 166px sidebar, larger logo, normal labels and comfortable navigation spacing.
+          - Restores the original 220px sidebar, larger logo, normal labels and comfortable navigation spacing.
           - Narrows only the initial main Windows window from 1320x760 to 1080x740. It remains resizable; overlay and recordings remain unchanged.
           - All six screens share the same 88px transparent one-line page heading with a 22px title.
           - Removes opaque header bands, the oversized 54px top gap, and distinct page-specific title sizes.
@@ -327,37 +327,37 @@ jobs:
           - Real Android-to-Windows acceptance must be validated on user's devices.
           '@
           $notes | Set-Content release-notes.md -Encoding utf8
-          gh release create golos-v0.2.22-window-width-rc $asset SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.22 Windows — Restored Sidebar and Narrow Window" --notes-file release-notes.md --prerelease
+          gh release create golos-v0.2.23-original-sidebar-rc $asset SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --title "GOLOS 0.2.23 Windows — Original Sidebar Restore" --notes-file release-notes.md --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
           New-Item -ItemType Directory -Force downloads, golos | Out-Null
           Copy-Item $asset downloads/GOLOS-Setup.exe -Force
           "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
           $manifest = @{
             name = $asset
-            revision = "5cf559da"
+            revision = "ca082974"
             sha256 = $hash
             sizeBytes = $bytes.Length
             publishedAt = (Get-Date).ToUniversalTime().ToString('o')
             channel = 'preview'
-            version = '0.2.22'
+            version = '0.2.23'
           }
           $manifest | ConvertTo-Json | Set-Content -Encoding utf8 golos/release.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add downloads/GOLOS-Setup.exe downloads/GOLOS-Setup.sha256 golos/release.json
-          git commit -m 'Publish verified GOLOS 0.2.22 approved sidebar and narrow application window'
+          git commit -m 'Publish verified GOLOS 0.2.23 approved sidebar and narrow application window'
           if ($LASTEXITCODE -ne 0) { throw 'GOLOS website update commit failed' }
           git pull --rebase origin main
           if ($LASTEXITCODE -ne 0) { throw 'GOLOS website rebase failed' }
           git push origin HEAD:main
           if ($LASTEXITCODE -ne 0) { throw 'GOLOS website push failed' }
-          Write-Host "PUBLISHED_GOLOS_0222 https://$($env:GITHUB_REPOSITORY_OWNER).github.io/kadr-public/golos/"
+          Write-Host "PUBLISHED_GOLOS_0223 https://$($env:GITHUB_REPOSITORY_OWNER).github.io/kadr-public/golos/"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: GOLOS-0.2.22-Windows-Window-Width
+          name: GOLOS-0.2.23-Windows-Original-Sidebar
           path: |
-            GOLOS_0.2.22_x64-Window-Width.exe
+            GOLOS_0.2.23_x64-Original-Sidebar.exe
             SHA256SUMS.txt
           if-no-files-found: ignore
