@@ -1,9 +1,9 @@
 {
-  "publishedAt": "2026-11-19T06:12:36.6083500Z",
-  "version": "0.2.20",
-  "sizeBytes": 10814896,
-  "sha256": "3a36e25e32dc24243a618ae122ddbcf0455a8dd1312ca9d98aa231e8217eacc7",
-  "revision": "c5fdef2b",
   "name": "GOLOS_0.2.20_x64-Unified-Layout.exe",
-  "channel": "preview"
+  "revision": "c5fdef2b",
+  "sha256": "3a36e25e32dc24243a618ae122ddbcf0455a8dd1312ca9d98aa231e8217eacc7",
+  "sizeBytes": 10814896,
+  "publishedAt": "2026-11-19T06:12:34Z",
+  "channel": "preview",
+  "version": "0.2.20"
 }
