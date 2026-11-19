@@ -1,9 +1,9 @@
 {
-  "sizeBytes": 10817752,
-  "sha256": "ddaa07dd868edcdc6a4e24c550db8229e77d9a5cfb3696279412a9b237ba7841",
-  "publishedAt": "2026-11-19T11:23:28.4441662Z",
   "name": "GOLOS_0.2.23_x64-Original-Sidebar.exe",
   "revision": "ca082974",
+  "sha256": "ddaa07dd868edcdc6a4e24c550db8229e77d9a5cfb3696279412a9b237ba7841",
+  "sizeBytes": 10817752,
+  "publishedAt": "2026-11-19T11:23:26Z",
   "channel": "preview",
   "version": "0.2.23"
 }
