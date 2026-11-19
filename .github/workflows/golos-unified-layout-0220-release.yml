@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nkuchenov-hash/KADR
-          ref: 73ddf8c1704e52f57e141586a7ac001e0b567473
+          ref: 9eed79a80829f11abece1f153a96b9f1c64ef868
           token: ${{ secrets.KADR_PRIVATE_REPO_TOKEN }}
           path: private-ci
           persist-credentials: false
@@ -85,8 +85,8 @@ jobs:
             @("$target/src-tauri/src/call_recorder.rs", "Мои записи"),
             @("$target/src-tauri/src/call_recorder.rs", "hide_internal_recording_folder"),
             @("$target/src-tauri/src/call_recorder.rs", "listing_existing_saved_mobile_recordings_builds_readable_library_automatically"),
-            @("$target/src/styles/globals.css", "screen-sticky-header"),
-            @("$target/src/styles/recordings-workspace.css", "position: sticky")
+            @("$target/src/styles/globals.css", ".screen-header {"),
+            @("$target/src/styles/recordings-workspace.css", ".recordings-scroll-body {")
           )) {
             if (-not (Select-String -Path $check[0] -Pattern $check[1] -SimpleMatch -Quiet)) { throw "Recording actions release feature missing: $($check[1])" }
           }
@@ -96,9 +96,9 @@ jobs:
           if (-not $buildCode.Contains($anchor)) { throw 'Build ID override anchor changed' }
           $buildCode = $buildCode.Replace($anchor, 'let commit = std::env::var("GOLOS_SOURCE_SHA_OVERRIDE").unwrap_or_else(|_| git_commit_label());')
           [System.IO.File]::WriteAllText($buildScript, $buildCode)
-          "GOLOS_FIXED_SOURCE_SHA=73ddf8c1" >> $env:GITHUB_ENV
-          "GOLOS_SOURCE_SHA_OVERRIDE=73ddf8c1" >> $env:GITHUB_ENV
-          Write-Host "GOLOS 0.2.20 source snapshot verified; revision 73ddf8c1"
+          "GOLOS_FIXED_SOURCE_SHA=9eed79a8" >> $env:GITHUB_ENV
+          "GOLOS_SOURCE_SHA_OVERRIDE=9eed79a8" >> $env:GITHUB_ENV
+          Write-Host "GOLOS 0.2.20 source snapshot verified; revision 9eed79a8"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -322,7 +322,7 @@ jobs:
           "$hash  GOLOS-Setup.exe" | Set-Content -Encoding ascii downloads/GOLOS-Setup.sha256
           $manifest = @{
             name = $asset
-            revision = "73ddf8c1"
+            revision = "9eed79a8"
             sha256 = $hash
             sizeBytes = $bytes.Length
             publishedAt = (Get-Date).ToUniversalTime().ToString('o')
