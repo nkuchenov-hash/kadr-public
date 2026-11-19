@@ -1,9 +1,9 @@
 {
-  "sha256": "165357e4f15fc60af16512dc00497bdee2372bc7cb54951a40d4652b69230633",
-  "revision": "0ab3df9e",
-  "publishedAt": "2026-11-19T05:46:06.2417284Z",
-  "version": "0.2.19",
-  "channel": "preview",
-  "sizeBytes": 10815161,
-  "name": "GOLOS_0.2.19_x64-Recordings-UX.exe"
+  "publishedAt": "2026-11-19T06:12:36.6083500Z",
+  "version": "0.2.20",
+  "sizeBytes": 10814896,
+  "sha256": "3a36e25e32dc24243a618ae122ddbcf0455a8dd1312ca9d98aa231e8217eacc7",
+  "revision": "c5fdef2b",
+  "name": "GOLOS_0.2.20_x64-Unified-Layout.exe",
+  "channel": "preview"
 }
